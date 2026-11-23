@@ -52,6 +52,10 @@ def new_ctx(browser, fake, viewport=PHONE, scheme="light", seed_ls=None):
     ctx.route("https://accounts.google.com/**", fake.auth)
     ctx.route("https://www.googleapis.com/**", fake.api)
     ctx.route("https://docs.googleapis.com/**", fake.docs)
+    # 실제 연결 값이 들어 있어도, 점검은 연결 값 없이 시작해 직접 넣는 길까지 확인한다.
+    _data = open(os.path.join(ROOT, "js/data.js"), encoding="utf-8").read()
+    _data = re.sub(r'clientId: "[^"]*"', 'clientId: ""', _data, count=1)
+    ctx.route("**/js/data.js*", lambda r: r.fulfill(status=200, content_type="text/javascript; charset=utf-8", body=_data))
     if seed_ls:
         ctx.add_init_script("(() => { if (location.origin !== %s || localStorage.getItem('sb.seeded')) return; const s = %s; for (const k in s) localStorage.setItem(k, s[k]); localStorage.setItem('sb.seeded', '1'); })()" % (json.dumps(BASE.rstrip("/")), json.dumps(seed_ls)))
     page = ctx.new_page()
@@ -172,6 +176,8 @@ def run_main(browser):
     import re as _re0
     build_now = int(_re0.search(r"const BUILD = (\d+);", open(os.path.join(ROOT, "js/core.js"), encoding="utf-8").read()).group(1))
     ok("s1 버전 표시", ("v%d" % build_now) in page.inner_text("#sbTop"))
+    _cid = re.search(r'clientId: "([^"]*)"', open(os.path.join(ROOT, "js/data.js"), encoding="utf-8").read()).group(1)
+    ok("s1 앱에 넣은 연결 값이 클라이언트 ID 모양(비어 있으면 통과)", _cid == "" or re.fullmatch(r"\d+-[a-z0-9]+\.apps\.googleusercontent\.com", _cid) is not None, _cid)
     page.fill("#cid", "엉뚱한 값")
     btn(page, "저장").click()
     flash(page, "클라이언트 ID 모양이 아닙니다")
