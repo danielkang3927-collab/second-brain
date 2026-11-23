@@ -4,7 +4,7 @@
 
 ## 가. 저장소와 주소 (GitHub)
 
-1. Claude 와 GitHub 계정을 잇는다. 한 번만 하면 된다. 아래 주소에서 GitHub 를 찾아 「연결」을 누르고, GitHub 화면에서 승인한다.
+1. Claude 와 GitHub 계정을 잇는다. 한 번만 하면 된다. 먼저 브라우저의 claude.ai 가 Claude 와 대화하는 앱과 같은 계정(같은 이메일)으로 로그인되어 있는지 본다. 계정이 다르면 연결이 그 대화에 닿지 않는다. 그다음 아래 주소에서 GitHub 를 찾아 「연결」을 누르고, GitHub 화면에서 승인한다.
 
 https://claude.ai/customize/connectors
 
