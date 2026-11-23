@@ -114,6 +114,24 @@ function syncText() {
 }
 
 /* ---------- 장 문서(드라이브)와 원어 자료(앱에 든 공개 자료) ---------- */
+/* 장 문서는 성경 폴더 아래 책별 폴더(예: 42_누가복음)에 들어 있다. 책 폴더 번호를 하루 동안 기억한다. */
+let BKF = null;
+async function bookFolders(force) {
+  if (BKF && !force) return BKF;
+  const saved = LS.get("bkF", null);
+  if (saved && saved.m && !force && Date.now() - (saved.t || 0) < 86400000) return (BKF = saved.m);
+  const fs = await gList("'" + D.FOLDERS.bible + "' in parents and mimeType = '" + FOLDER_MIME + "'", { size: 100 });
+  const m = {}; fs.forEach(f => { if (/^\d\d_/.test(f.name)) m[f.name] = f.id; });
+  LS.set("bkF", { t: Date.now(), m: m }); return (BKF = m);
+}
+async function chapFind(b, title) {
+  const bn = pad2(b.order) + "_" + b.name, opt = { size: 3, order: "modifiedTime desc" };
+  const inBook = async m => m[bn] ? await gList("'" + m[bn] + "' in parents and name = '" + q1(title) + "'", opt) : [];
+  let fs = await inBook(await bookFolders());
+  if (!fs.length) fs = await gList("'" + D.FOLDERS.bible + "' in parents and name = '" + q1(title) + "'", opt);
+  if (!fs.length) fs = await inBook(await bookFolders(true));
+  return fs;
+}
 function chapLoad(bi, ch, force) {
   const key = chapKey(bi, ch), cur = S.chap[key];
   if (cur && !force && (cur.st === "ing" || (cur.st === "ok" && Date.now() - cur.t < 600000))) return cur.p;
@@ -123,7 +141,7 @@ function chapLoad(bi, ch, force) {
     try {
       let id = ids[title];
       if (!id) {
-        const fs = await gList("'" + D.FOLDERS.bible + "' in parents and name = '" + q1(title) + "'", { size: 3, order: "modifiedTime desc" });
+        const fs = await chapFind(book(bi), title);
         if (!fs.length) { rec.st = "none"; return rec; }
         id = fs[0].id; ids[title] = id; LS.set("chIds", ids);
       }
@@ -473,7 +491,7 @@ function bookView() {
 
 /* ---------- 화면: 찾기 ---------- */
 const GROUPS = ["성경", "설교 요지", "예화", "내 설교", "원고", "독서", "내 기록"];
-function groupOf(f) { const p = (f.parents || [])[0], F = D.FOLDERS; return p === F.bible ? "성경" : p === F.yoji ? "설교 요지" : p === F.illust ? "예화" : p === F.mine ? "내 설교" : p === F.manu ? "원고" : p === F.read ? "독서" : "내 기록"; }
+function groupOf(f) { const p = (f.parents || [])[0], F = D.FOLDERS; return p === F.bible || (BKF && Object.keys(BKF).some(k => BKF[k] === p)) ? "성경" : p === F.yoji ? "설교 요지" : p === F.illust ? "예화" : p === F.mine ? "내 설교" : p === F.manu ? "원고" : p === F.read ? "독서" : "내 기록"; }
 function findView() {
   const F = S.find;
   let h = '<section class="sec"><div class="findrow"><input id="q" type="search" enterkeyhint="search" autocomplete="off" aria-label="찾을 말" placeholder="낱말이나 문장" data-draft="q" data-enter="find" value="' + esc(draft("q")) + '">' + btn("찾기", "find", null, "pri") + "</div>" +
@@ -667,6 +685,7 @@ const ACT = {
     S.find = { st: "ing", q: q }; render();
     try {
       const F = D.FOLDERS, ps = ["bible", "yoji", "illust", "mine", "manu", "read"].map(k => "'" + F[k] + "' in parents"), my = LS.get("myFolder", ""); if (my) ps.push("'" + q1(my) + "' in parents");
+      const bf = await bookFolders(); Object.keys(bf).forEach(k => ps.push("'" + q1(bf[k]) + "' in parents"));
       S.find = { st: "ok", q: q, files: await gList("fullText contains '" + q1(q) + "' and (" + ps.join(" or ") + ")", { size: 40 }) };
     } catch (e) { S.find = { st: "err", q: q, err: explain(e) }; if (e.code === "login" || e.code === "scope") fail(e); }
     if (!S.reader) render();

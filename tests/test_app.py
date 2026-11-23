@@ -169,7 +169,9 @@ def run_main(browser):
     page.goto(BASE)
     page.wait_for_selector("#sbMain section")
     ok("s1 연결 값이 없으면 처음 연결 화면", "처음 연결" in main_text(page))
-    ok("s1 버전 표시", "v1" in page.inner_text("#sbTop"))
+    import re as _re0
+    build_now = int(_re0.search(r"const BUILD = (\d+);", open(os.path.join(ROOT, "js/core.js"), encoding="utf-8").read()).group(1))
+    ok("s1 버전 표시", ("v%d" % build_now) in page.inner_text("#sbTop"))
     page.fill("#cid", "엉뚱한 값")
     btn(page, "저장").click()
     flash(page, "클라이언트 ID 모양이 아닙니다")
@@ -641,21 +643,24 @@ def run_main(browser):
     fake.no_markdown = False
 
     # s18 새 판 적용: 같은 판으로 되풀이하지 않는다
+    import re as _re
+    core_src = open(os.path.join(ROOT, "js/core.js"), encoding="utf-8").read()
+    cur = int(_re.search(r"const BUILD = (\d+);", core_src).group(1)); nxt = cur + 1   # 지금 판과 그다음 판
     navs = []
     page.on("domcontentloaded", lambda pg: navs.append(pg.url))
-    page.route("**/version.json*", lambda r: r.fulfill(status=200, content_type="application/json", body='{"build": 2}'))
+    page.route("**/version.json*", lambda r: r.fulfill(status=200, content_type="application/json", body='{"build": %d}' % nxt))
     page.evaluate("localStorage.removeItem('sb.updTry')")
     page.goto(BASE)
-    page.wait_for_url(BASE + "?v=2")
+    page.wait_for_url(BASE + "?v=%d" % nxt)
     page.wait_for_selector("#sbFlash .bar")
     page.wait_for_timeout(900)
-    ok("s18 새 판이 있으면 저절로 한 번 다시 엶 (되풀이 없음)", navs.count(BASE + "?v=2") == 1, str(navs))
-    ok("s18 아직 옛 판이면 알림 띠와 지금 바꾸기", "새 버전 v2" in page.inner_text("#sbFlash") and btn(page, "지금 바꾸기").count() == 1)
-    core = open(os.path.join(ROOT, "js/core.js"), encoding="utf-8").read().replace("const BUILD = 1;", "const BUILD = 2;")
+    ok("s18 새 판이 있으면 저절로 한 번 다시 엶 (되풀이 없음)", navs.count(BASE + "?v=%d" % nxt) == 1, str(navs))
+    ok("s18 아직 옛 판이면 알림 띠와 지금 바꾸기", ("새 버전 v%d" % nxt) in page.inner_text("#sbFlash") and btn(page, "지금 바꾸기").count() == 1)
+    core = core_src.replace("const BUILD = %d;" % cur, "const BUILD = %d;" % nxt)
     page.route("**/js/core.js*", lambda r: r.fulfill(status=200, content_type="text/javascript; charset=utf-8", body=core))
     btn(page, "지금 바꾸기").click()
-    page.wait_for_function("() => document.getElementById('sbTop').innerText.includes('v2')")
-    ok("s18 새 판으로 바뀌면 한 번 알림", "새 버전 v2로 바꿨습니다" in page.inner_text("#sbFlash") and btn(page, "지금 바꾸기").count() == 0, page.inner_text("#sbFlash"))
+    page.wait_for_function("() => document.getElementById('sbTop').innerText.includes('v%d')" % nxt)
+    ok("s18 새 판으로 바뀌면 한 번 알림", ("새 버전 v%d로 바꿨습니다" % nxt) in page.inner_text("#sbFlash") and btn(page, "지금 바꾸기").count() == 0, page.inner_text("#sbFlash"))
     page.unroute("**/js/core.js*")
     page.unroute("**/version.json*")
 

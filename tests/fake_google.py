@@ -432,7 +432,11 @@ def seed(fake):
     y = fake.vault_doc("yoji", "요지_2026-11-01_눅 19:1-10_시험용 요지", "# 시험용 요지\n\n| 항목 | 내용 |\n|---|---|\n| 본문 | 눅 19:1-10 |\n\n## 중심 생각\n\n잃은 것을 찾는다는 **시험용 문장**.\n\n- 첫째 대지\n- 둘째 대지\n\n원고: [시험용 원고 전문](%s)\n" % d(m["id"]))
     i1 = fake.vault_doc("illust", "예화_시험용 예화 하나_찾아오심", "# 시험용 예화 하나\n\n시험용 예화 본문.\n")
     i2 = fake.vault_doc("illust", "예화_<img src=x onerror=window.__xss=1>_시험용", "# 꺾쇠가 든 제목\n\n시험용 예화 본문 둘. <script>window.__xss=2</script> <img src=x onerror=window.__xss=3>\n\n[위험한 링크](javascript:window.__xss=4)\n")
-    fake.vault_doc("bible", "42_누가복음 19장", chapter_md("누가복음 19장", "장", 12, {
+    # 실제 자료실처럼 책별 폴더에 넣는다(누가복음). 창세기와 시편은 옛 배치(성경 폴더 바로 아래)로 둔다.
+    luke = fake._put("fakeFolderLuke", "42_누가복음", FOLDER, [fake.F["bible"]], vault=True)
+    fake._put("fakeFolderOld", "_옛판 (개역개정만 있던 장 문서)", FOLDER, [fake.F["bible"]], vault=True)
+    fake.F["luke"] = luke["id"]
+    fake.vault_doc("luke", "42_누가복음 19장", chapter_md("누가복음 19장", "장", 12, {
         "교회 설교 요지": [("2026-11-01 시험용 설교자, 시험용 요지 (눅 19:1-10)", d(y["id"]), "")],
         "예화": [("시험용 예화 하나_찾아오심", d(i1["id"]), "1-10절"), ("<b>굵게</b> 보이면 안 되는 제목", d(i2["id"]), "5절")],
         "원고": [("2026-11-01 시험용 원고", d(m["id"]), "")]}, heading="시험용 소제목"))
