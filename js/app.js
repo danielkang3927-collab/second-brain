@@ -10,7 +10,7 @@ const WD = ["주일", "월요일", "화요일", "수요일", "목요일", "금�
 const U = Object.assign({ tab: "prep", prepId: "", step: 1, b: 0, ch: 1, ver: "a", whole: false }, LS.get("ui", null) || {});
 const S = {
   act: actNorm(LS.get("act", null)), preps: null, prepsSt: "", prepsErr: "", prep: null, prepSt: "", prepErr: "",
-  chap: {}, orig: {}, lex: {}, idx: {}, morph: null, word: null, more: {}, goto: null, hit: null, find: null, flash: null, reader: null, edit: null, clash: null,
+  chap: {}, bri: {}, orig: {}, lex: {}, idx: {}, morph: null, word: null, more: {}, goto: null, hit: null, find: null, flash: null, reader: null, edit: null, clash: null,
   sync: { st: "", at: LS.get("syncAt", 0), err: "" }, upd: { want: 0 }, check: null, checking: false, gate: "", gateMode: "", copy: ""
 };
 const R = [];
@@ -157,6 +157,30 @@ function chapLoad(bi, ch, force) {
   })();
   return rec.p;
 }
+/* 원독자 BRI: 책 폴더의 「원독자_BRI_책이름」 문서. 문서를 고치면 앱에서도 그대로 보인다(열 때마다 새로 읽음). */
+function briLoad(bi) {
+  const cur = S.bri[bi];
+  if (cur && (cur.st === "ing" || cur.st === "ok" || (cur.st === "none" && Date.now() - cur.t < 600000))) return cur.p;
+  const b = book(bi), title = "원독자_BRI_" + b.name, rec = S.bri[bi] = { st: "ing", t: Date.now(), title: title };
+  rec.p = (async () => {
+    try {
+      const m = await bookFolders(), bn = pad2(b.order) + "_" + b.name;
+      let fs = m[bn] ? await gList("'" + m[bn] + "' in parents and name = '" + q1(title) + "'", { size: 3, order: "modifiedTime desc" }) : [];
+      if (!fs.length) fs = await gList("'" + D.FOLDERS.bible + "' in parents and name = '" + q1(title) + "'", { size: 3, order: "modifiedTime desc" });
+      if (fs.length) { rec.id = fs[0].id; rec.st = "ok"; } else rec.st = "none";
+    } catch (e) { rec.st = "err"; rec.err = explain(e); }
+    rec.t = Date.now(); return rec;
+  })();
+  return rec.p;
+}
+function briHtml(bi) {
+  const R = S.bri[bi], name = book(bi).name;
+  if (!R || R.st === "ing") return '<p class="muted">' + esc(name) + " 원독자 BRI를 찾는 중입니다.</p>";
+  if (R.st === "ok") return '<p class="bri">' + btn(esc(name) + " 원독자 BRI 읽기", "read", reg({ id: R.id, title: R.title }), "pri") + "</p>";
+  if (R.st === "none") return '<p class="muted">' + esc(name) + "의 원독자 BRI 문서가 아직 없습니다.</p>";
+  return '<p class="warn">' + esc(R.err || "원독자 BRI를 찾지 못했습니다.") + "</p>";
+}
+function briPaint(bi) { briLoad(bi).then(() => { const el = $("briPart"); if (el && el.dataset.bi === String(bi)) el.innerHTML = briHtml(bi); }); }
 const JSONS = {};
 function getJson(path) {
   if (!JSONS[path]) JSONS[path] = fetchT("data/orig/" + path + "?d=" + encodeURIComponent(D.ORIG.ver), null, 20000).then(r => { if (!r.ok) throw new GErr(r.status === 404 ? "notfound" : "busy", "원어 자료를 받지 못했습니다."); return r.json(); })
@@ -415,7 +439,7 @@ function prepOpenView() {
   return h + '</ol><p class="foot">' + btn("준비한 것 한눈에 읽기", "read", reg({ id: P.id, title: P.label + " 준비" })) + "</p>";
 }
 function chapPartHtml(s) {
-  const P = S.prep, bi = P.info.bookIndex, ch = P.info.ch, C = S.chap[chapKey(bi, ch)], secs = s.kinds.filter(k => k !== "text" && k !== "logos" && k !== "orig");
+  const P = S.prep, bi = P.info.bookIndex, ch = P.info.ch, C = S.chap[chapKey(bi, ch)], secs = s.kinds.filter(k => k !== "text" && k !== "logos" && k !== "orig" && k !== "bri");
   const wantText = s.kinds.indexOf("text") >= 0, wantOrig = s.kinds.indexOf("orig") >= 0, pick = U.whole ? null : parseVerses(P.info.verses);
   if (!wantText && !wantOrig && !secs.length) return "";
   let h = "";
@@ -449,7 +473,8 @@ function writeHtml(s, info) {
 }
 function stepBody(s) {
   const P = S.prep, info = stepInfo(s.no), key = "p." + P.id + "." + s.no, next = D.STEPS[D.STEPS.indexOf(s) + 1];
-  let h = '<p class="guide">' + esc(s.guide) + "</p>" + (s.points && s.points.length ? '<details class="pts"><summary>길잡이</summary><ul>' + s.points.map(x => "<li>" + esc(x) + "</li>").join("") + "</ul>" + (s.src ? '<p class="src">근거: ' + esc(s.src) + "</p>" : "") + (s.docs && D.METHOD_DOCS ? '<p class="srcdocs">' + s.docs.map(k => D.METHOD_DOCS[k]).filter(Boolean).map(m => btn(esc(m.title) + " 원문", "read", reg({ id: m.id, title: m.title }), "inl")).join(" ") + "</p>" : "") + "</details>" : "") + '<div id="chapPart" data-key="' + esc(chapPartKey()) + '">' + chapPartHtml(s) + "</div>";
+  let h = '<p class="guide">' + esc(s.guide) + "</p>" + (s.points && s.points.length ? '<details class="pts"><summary>길잡이</summary><ul>' + s.points.map(x => "<li>" + esc(x) + "</li>").join("") + "</ul>" + (s.src ? '<p class="src">근거: ' + esc(s.src) + "</p>" : "") + (s.docs && D.METHOD_DOCS ? '<p class="srcdocs">' + s.docs.map(k => D.METHOD_DOCS[k]).filter(Boolean).map(m => btn(esc(m.title) + " 원문", "read", reg({ id: m.id, title: m.title }), "inl")).join(" ") + "</p>" : "") + "</details>" : "") + (s.kinds.indexOf("bri") >= 0 && S.prep ? '<div id="briPart" data-bi="' + S.prep.info.bookIndex + '">' + briHtml(S.prep.info.bookIndex) + "</div>" : "") + '<div id="chapPart" data-key="' + esc(chapPartKey()) + '">' + chapPartHtml(s) + "</div>";
+  if (s.kinds.indexOf("bri") >= 0 && S.prep) setTimeout(() => briPaint(S.prep.info.bookIndex), 0);
   if (s.kinds.indexOf("logos") >= 0) {
     h += '<div class="logos">' + btn("로고스 연구 맡길 말 복사", "logos", s.no) + '<p class="muted">복사한 말을 Claude 대화에 붙여 넣으면, 로고스 서재에서 찾은 내용을 이 칸에 넣어 달라는 부탁이 됩니다.</p>' +
       (S.copy ? '<textarea class="copy" rows="6" readonly>' + esc(S.copy) + "</textarea>" : "") + "</div>";
