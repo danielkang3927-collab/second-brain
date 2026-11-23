@@ -312,6 +312,7 @@ for s, (n, by_book, refs) in index.items():
     idx[chunk_of(s)][s] = [n, [[b, k] for b, k in sorted(by_book.items())], refs if len(refs) <= REFS_MAX else None]
 for ck in sorted(idx):
     sizes["idx"] += write("idx/%s.json" % ck, idx[ck])
+sizes["idx"] += write("freq.json", {s: v[0] for ck in idx for s, v in idx[ck].items()})   # 낱말마다 쓰인 횟수만 (원어 길잡이)
 counts["index_words"] = len(index)
 missing = [s for s in used if s not in lex[chunk_of(s)] and s[:5] not in lex[chunk_of(s)]]
 counts["lex_missing"] = len(missing)

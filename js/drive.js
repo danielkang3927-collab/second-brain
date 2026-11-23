@@ -141,6 +141,16 @@ async function docLine(id, stepNo, k, oldText, newText) {
   }
   return false;
 }
+/* 달 문서의 기록 덩이 읽기와 지우기 */
+async function docBlocks(id) { const doc = docRoot(await docGet(id)); if (!doc) throw new GErr("bad", "문서를 읽지 못했습니다."); return blocksRead(doc).blocks; }
+async function docBlockDel(id, head, k) {
+  for (let i = 0; i < 2; i++) {
+    const doc = docRoot(await docGet(id)); if (!doc) throw new GErr("bad", "문서를 읽지 못했습니다.");
+    const req = blockRequests(doc, head, k); if (req.conflict) throw new GErr("conflict", "그사이 이 기록이 바뀌었습니다.");
+    try { await docBatch(id, req.requests, req.writeControl); return true; } catch (e) { if (e.code === "revision" && i === 0) continue; throw e; }
+  }
+  return false;
+}
 /* 쓰는 칸의 글 전체를 바꾼다. base: 화면이 알고 있던 글. 문서의 글이 그것과 다르면(다른 곳에서 고침) 덮어쓰지 않고 conflict 로 알린다. force: 알고도 내 글로 바꾼다 */
 async function docBody(id, stepNo, title, text, base, force) {
   for (let i = 0; i < 2; i++) {

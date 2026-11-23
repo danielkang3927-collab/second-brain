@@ -10,7 +10,7 @@ const WD = ["주일", "월요일", "화요일", "수요일", "목요일", "금�
 const U = Object.assign({ tab: "prep", prepId: "", step: 1, b: 0, ch: 1, ver: "a", whole: false }, LS.get("ui", null) || {});
 const S = {
   act: actNorm(LS.get("act", null)), preps: null, prepsSt: "", prepsErr: "", prep: null, prepSt: "", prepErr: "",
-  chap: {}, bri: {}, orig: {}, lex: {}, idx: {}, morph: null, word: null, more: {}, goto: null, hit: null, find: null, flash: null, reader: null, edit: null, clash: null,
+  chap: {}, bri: {}, orig: {}, lex: {}, idx: {}, morph: null, word: null, more: {}, goto: null, hit: null, find: null, flash: null, reader: null, edit: null, clash: null, del: null, note: "", notes: null, freq: null,
   sync: { st: "", at: LS.get("syncAt", 0), err: "" }, upd: { want: 0 }, check: null, checking: false, gate: "", gateMode: "", copy: ""
 };
 const R = [];
@@ -164,10 +164,10 @@ function briLoad(bi) {
   const b = book(bi), title = "원독자_BRI_" + b.name, rec = S.bri[bi] = { st: "ing", t: Date.now(), title: title };
   rec.p = (async () => {
     try {
-      const m = await bookFolders(), bn = pad2(b.order) + "_" + b.name;
-      let fs = m[bn] ? await gList("'" + m[bn] + "' in parents and name = '" + q1(title) + "'", { size: 3, order: "modifiedTime desc" }) : [];
-      if (!fs.length) fs = await gList("'" + D.FOLDERS.bible + "' in parents and name = '" + q1(title) + "'", { size: 3, order: "modifiedTime desc" });
-      if (fs.length) { rec.id = fs[0].id; rec.st = "ok"; } else rec.st = "none";
+      const m = await bookFolders(), bn = pad2(b.order) + "_" + b.name, opt = { size: 3, order: "modifiedTime desc" };
+      const find = async name => { let fs = m[bn] ? await gList("'" + m[bn] + "' in parents and name = '" + q1(name) + "'", opt) : []; if (!fs.length) fs = await gList("'" + D.FOLDERS.bible + "' in parents and name = '" + q1(name) + "'", opt); return fs.length ? fs[0].id : ""; };
+      const got = await Promise.all([find(title), find("책이해_" + b.name)]);
+      rec.id = got[0]; rec.know = got[1]; rec.st = got[0] || got[1] ? "ok" : "none";
     } catch (e) { rec.st = "err"; rec.err = explain(e); }
     rec.t = Date.now(); return rec;
   })();
@@ -176,7 +176,7 @@ function briLoad(bi) {
 function briHtml(bi) {
   const R = S.bri[bi], name = book(bi).name;
   if (!R || R.st === "ing") return '<p class="muted">' + esc(name) + " 원독자 BRI를 찾는 중입니다.</p>";
-  if (R.st === "ok") return '<p class="bri">' + btn(esc(name) + " 원독자 BRI 읽기", "read", reg({ id: R.id, title: R.title }), "pri") + "</p>";
+  if (R.st === "ok") return '<p class="bri">' + (R.id ? btn(esc(name) + " 원독자 BRI 읽기", "read", reg({ id: R.id, title: R.title }), "pri") : "") + (R.know ? btn(esc(name) + " 책 이해 읽기", "read", reg({ id: R.know, title: "책 이해: " + name })) : "") + "</p>";
   if (R.st === "none") return '<p class="muted">' + esc(name) + "의 원독자 BRI 문서가 아직 없습니다.</p>";
   return '<p class="warn">' + esc(R.err || "원독자 BRI를 찾지 못했습니다.") + "</p>";
 }
@@ -191,7 +191,8 @@ function origLoad(bi, ch) {
   const key = chapKey(bi, ch), cur = S.orig[key];
   if (cur && (cur.st === "ok" || cur.st === "ing")) return cur.p;
   const rec = S.orig[key] = { st: "ing" };
-  rec.p = getJson("c/" + pad2(bi + 1) + "_" + String(ch).padStart(3, "0") + ".json").then(d => { rec.data = d; rec.st = "ok"; return rec; }, e => { rec.st = "err"; rec.err = explain(e); return rec; });
+  /* 낱말 빈도표(freq.json)는 길잡이의 「드물게 쓰인 낱말」에 쓴다. 못 받아도 본문은 보여 준다 */
+  rec.p = Promise.all([getJson("c/" + pad2(bi + 1) + "_" + String(ch).padStart(3, "0") + ".json"), S.freq ? null : getJson("freq.json").then(d => { S.freq = d; }, () => {})]).then(r => { rec.data = r[0]; rec.st = "ok"; return rec; }, e => { rec.st = "err"; rec.err = explain(e); return rec; });
   return rec.p;
 }
 const chunkOf = strong => strong.charAt(0) + Math.floor(parseInt(strong.slice(1, 5), 10) / 250);
@@ -255,12 +256,47 @@ function wordPanel() {
   return h + '<p class="muted src">자료: STEP Bible (Tyndale House Cambridge) CC BY 4.0' + (heb ? ", OpenScriptures Hebrew Lexicon CC BY 4.0" : "") + "</p>";
 }
 function paintWord() { const el = $("wp"); if (el) el.innerHTML = wordPanel(); }
+/* 원어 길잡이: 본문의 낱말 번호와 문법 표시를 세어 먼저 볼 곳을 짚는다. 센 것만 보여 주고 뜻풀이는 하지 않는다 */
+function origGuide(bi, ch, pick) {
+  const O = S.orig[chapKey(bi, ch)]; if (!O || O.st !== "ok") return "";
+  const heb = bi < 39, seen = {}, imp = [], pro = [], alt = [], abs = [], lang = heb ? "he" : "el"; let nv = 0;
+  const add = (arr, it) => { if (!arr.some(x => x.arg === it.arg)) arr.push(it); };
+  for (const v of Object.keys(O.data.v)) {
+    const n = +v; if (!n || (pick && !pick.has(n))) continue; nv++;
+    O.data.v[v].forEach((w, i) => {
+      const it = { arg: bi + ":" + ch + ":" + v + ":" + i, v: n, form: heb ? String(w[0]).replace(/[\/\\]/g, "").replace(/׃$/, "") : String(w[0]).replace(/[.,;·¶]+$/g, ""), gl: String(w[2]).replace(/[\/<>]/g, "").replace(/\s+/g, " ").trim() };
+      if (w[5]) add(alt, it);
+      for (const p of wordParts(w, heb)) {
+        const c = p.code || "";
+        if (heb ? /^[HA]V.v/.test(c) : /^V-2?[A-Z][A-Z]M-/.test(c)) add(imp, it);
+        if (heb && /^[HA]V.a/.test(c)) add(abs, it);
+        if (!heb && /^P-[12]N[SP]/.test(c)) add(pro, it);
+        if (!p.root || !/^[NVA]$/.test(heb ? c.charAt(1) : c.split("-")[0]) || p.strong === "G1510" || /^H1961/.test(p.strong)) continue;
+        const r = seen[p.strong] || (seen[p.strong] = Object.assign({ n: 0, vs: [], strong: p.strong }, it)); r.n++; if (r.vs.indexOf(n) < 0) r.vs.push(n);
+      }
+    });
+  }
+  const all = Object.keys(seen).map(k => seen[k]), thr = nv <= 12 ? 2 : nv <= 30 ? 3 : 4;
+  const rep = all.filter(r => r.n >= thr).sort((x, y) => y.n - x.n).slice(0, 10);
+  const F = S.freq, rare = F ? all.map(r => Object.assign({ f: F[r.strong] || F[r.strong.slice(0, 5)] || 0 }, r)).filter(r => r.f > 0 && r.f <= 3).sort((x, y) => x.f - y.f).slice(0, 10) : [];
+  const chip = (it, extra) => '<button type="button" class="chip" data-act="wordGo" data-arg="' + it.arg + '"><span lang="' + lang + '">' + esc(it.form) + "</span> " + esc(it.gl) + ' <span class="cx">' + esc(extra) + "</span></button>";
+  const part = (title, why, arr, extra) => arr.length ? "<h4>" + title + " " + arr.length + '</h4><p class="muted">' + why + '</p><div class="chips">' + arr.map(it => chip(it, extra(it))).join("") + "</div>" : "";
+  const at = it => it.v + "절", T = heb ? "구약" : "신약";
+  const body = part("되풀이되는 낱말", "이 본문에 여러 번 나오는 명사·동사·형용사입니다. 본문이 무엇을 거듭 말하는지 봅니다.", rep, r => r.n + "번, " + r.vs.join("·") + "절") +
+    part("드물게 쓰인 낱말", T + " 전체에 세 번 이하로 나오는 낱말입니다. 견줄 쓰임이 적으니 사전 풀이를 끝까지 읽어 보십시오.", rare, r => T + "에 " + r.f + "번") +
+    part("명령형", "명령형으로 쓰인 동사입니다. 누구에게 무엇을 하라고 하는지 봅니다.", imp, at) +
+    part("주어를 따로 밝힌 곳", "헬라어 동사는 어미에 주어가 들어 있어 '나', '너희' 같은 주격 대명사를 쓰지 않아도 됩니다. 일부러 쓴 자리이며, 문법서는 강조나 대조일 때가 많다고 설명합니다.", pro, at) +
+    part("부정사 절대형", "같은 뿌리의 동사와 나란히 쓰이면 그 동작을 힘주어 말하는 히브리어 표현입니다(예: '반드시 죽으리라').", abs, at) +
+    part("사본에 따라 다른 낱말", "자료에 사본 전통에 따라 있고 없음이 갈린다고 표시된 낱말입니다.", alt, at);
+  return '<details class="og" open><summary>원어 길잡이: 먼저 볼 곳</summary><ol class="how"><li>우리말 본문을 먼저 읽고, 아래에 짚은 낱말부터 누릅니다. 누르면 그 절로 가서 풀이가 열립니다.</li><li>풀이에서는 원형과 문법, 사전 풀이, 성경에서 쓰인 곳을 차례로 봅니다. 쓰인 곳을 따라가면 다른 본문의 쓰임을 견줄 수 있습니다.</li><li>눈에 띈 것은 「이 낱말을 메모에 담기」로 남깁니다. 뜻을 정하는 일은 5. 해석에서 합니다.</li></ol>' +
+    (body || '<p class="muted">이 범위에서는 따로 짚을 곳이 세어지지 않았습니다. 절마다 동사부터 눌러 보십시오.</p>') + '<p class="muted src">낱말 번호와 문법 표시를 센 목록입니다(STEP Bible 자료). 해석은 들어 있지 않습니다.</p></details>';
+}
 /* 원어 본문: 절마다 우리말 한 줄과 원어 낱말들. 낱말을 누르면 그 절 아래에 풀이가 열린다 */
 function origHtml(bi, ch, pick) {
   const O = S.orig[chapKey(bi, ch)]; if (!O || O.st === "ing") return '<p class="muted">원어 본문을 불러오는 중입니다.</p>';
   if (O.st !== "ok") return '<p class="muted">' + esc(O.err) + "</p>" + btn("다시 불러오기", "origReload");
   const heb = bi < 39, C = S.chap[chapKey(bi, ch)], kr = C && C.st === "ok" ? new Map((C.data.texts[C.data.order[0]] || []).filter(x => x.n).map(x => [x.n, x.t])) : null, W = S.word;
-  let h = "";
+  let h = origGuide(bi, ch, pick);
   for (const v of Object.keys(O.data.v)) {
     const n = +v; if (pick && !pick.has(n)) continue;
     const open = W && W.b === bi && W.ch === ch && W.v === v;
@@ -339,6 +375,7 @@ function paintNav() { $("sbNav").innerHTML = TABS.map(t => '<button type="button
 function enter() {
   if (!signedIn()) return;
   if (U.tab === "prep") { if (U.prepId) { if (!S.prep && S.prepSt !== "ing") { openPrep(U.prepId); return; } } else { loadPreps(); scrollBack(); return; } }
+  if (U.tab === "bible") briPaint(U.b);
   const t = chapTarget();
   if (t && (U.tab === "bible" || (U.tab === "prep" && S.prep))) {
     /* 장 문서와 원어 자료는 따로 도착한다. 어느 쪽이 늦게 와도 가려던 절이 화면에 남도록 둘 다 끝날 때까지 자리를 잡는다 */
@@ -456,7 +493,7 @@ function memosHtml(s, info) {
   info.lines.forEach((m, k) => {
     if (!m.trim()) return;
     if (S.edit && S.edit.no === s.no && S.edit.k === k) rows.push('<li class="editing"><textarea id="lineBox" rows="3" aria-label="메모 고치기">' + esc(m) + '</textarea><div class="row two">' + btn("고친 것 저장", "lineSave", null, "pri") + btn("그만두기", "lineCancel") + "</div></li>");
-    else rows.push('<li><span class="mt">' + lineHtml(m) + '</span><button type="button" class="ed" data-act="lineEdit" data-arg="' + s.no + ":" + k + '">고치기</button></li>');
+    else rows.push('<li><span class="mt">' + lineHtml(m) + '</span><button type="button" class="ed" data-act="lineEdit" data-arg="' + s.no + ":" + k + '">고치기</button><button type="button" class="rm' + (S.del === "l" + s.no + ":" + k ? " sure" : "") + '" data-act="lineDel" data-arg="' + s.no + ":" + k + '">' + (S.del === "l" + s.no + ":" + k ? "정말 지우기" : "지우기") + "</button></li>");
   });
   info.tail.forEach(m => rows.push('<li><span class="mt">' + lineHtml(m) + "</span></li>"));
   return rows.length ? '<ul class="memos">' + rows.join("") + "</ul>" : "";
@@ -487,7 +524,7 @@ function stepBody(s) {
 /* ---------- 화면: 성경 ---------- */
 function bibleView() {
   const key = "qt." + U.b + "." + U.ch;
-  return '<section class="sec">' + pickers() + '<div class="row two">' + btn("앞 장", "chStep", -1) + btn("다음 장", "chStep", 1) + '</div></section><div id="chapPart" data-key="' + esc(chapPartKey()) + '">' + bibleChapHtml() + "</div>" +
+  return '<section class="sec">' + pickers() + '<div class="row two">' + btn("앞 장", "chStep", -1) + btn("다음 장", "chStep", 1) + '</div><div id="briPart" data-bi="' + U.b + '">' + briHtml(U.b) + '</div></section><div id="chapPart" data-key="' + esc(chapPartKey()) + '">' + bibleChapHtml() + "</div>" +
     '<section class="sec"><h2>묵상</h2><label class="fld">오늘 말씀이 건네신 것<textarea id="qtText" rows="4" data-draft="' + key + '">' + esc(draft(key)) + "</textarea></label>" + btn("묵상 저장", "qtSave", null, "pri wide") +
     '<p class="foot">' + btn("이번 달 묵상 읽기", "readMonth", "묵상", "inl") + '</p></section><div id="matPart">' + bibleMatsHtml() + "</div>";
 }
@@ -506,15 +543,39 @@ function bibleMatsHtml() {
   return '<section class="sec"><h2>이 ' + unitOf(b) + "에 걸린 자료</h2>" + (mats || '<p class="muted">아직 걸린 자료가 없습니다.</p>') + "</section>";
 }
 
-/* ---------- 화면: 독서 ---------- */
+/* ---------- 화면: 독서 (습관 돕기) ----------
+   날마다 「읽었습니다」만 눌러도 이어진다. 적는 것은 원할 때만. 책 목록과 진도는 활동 기록에서 읽는다(기기끼리 맞춰진다). 전체 쪽수와 목표는 이 기기에 둔다 */
+function shelfList() {
+  const st = bookStats(S.act), off = LS.get("shelfOff", []) || [], meta = LS.get("shelf", {}) || {};
+  return Array.from(new Set(Object.keys(meta).concat(Object.keys(st)))).filter(t => off.indexOf(t) < 0 && !(st[t] && st[t].done))
+    .map(t => Object.assign({ t: t, page: 0, last: "", n: 0, total: +(meta[t] || {}).total || 0, at: (meta[t] || {}).at || "" }, st[t] || {})).sort((x, y) => ((y.last || y.at) < (x.last || x.at) ? -1 : 1));
+}
+function notesHtml() {
+  const N = S.notes; if (!N) return btn("이번 달에 남긴 것 보기", "notesLoad");
+  if (N.st === "ing") return '<p class="muted">불러오는 중입니다.</p>';
+  if (N.st === "err") return '<p class="muted">' + esc(N.err) + "</p>" + btn("다시 불러오기", "notesLoad");
+  if (!N.items.length) return '<p class="muted">이번 달에 남긴 글이 아직 없습니다.</p>';
+  return '<ul class="notes">' + N.items.map((x, i) => '<li><p class="nh"><b>' + esc(x.kind) + "</b> " + esc(x.head.replace(/^\[[^\]]+\] /, "")) + "</p>" + x.lines.map(l => "<p>" + lineHtml(l) + "</p>").join("") +
+    '<p class="acts"><button type="button" class="rm' + (S.del === "n" + i ? " sure" : "") + '" data-act="noteDel" data-arg="' + i + '">' + (S.del === "n" + i ? "정말 지우기" : "지우기") + "</button></p></li>").join("") + "</ul>";
+}
+function paintNotes() { const el = $("notesPart"); if (el && U.tab === "book" && !S.reader) el.innerHTML = notesHtml(); }
 function bookView() {
-  const recent = LS.get("books", []) || [];
-  return '<section class="sec"><h2>읽은 것 적기</h2><label class="fld">책 제목<input id="bkT" type="text" autocomplete="off" data-draft="bk.t" value="' + esc(draft("bk.t")) + '"></label>' +
-    (recent.length ? '<div class="chips">' + recent.map(t => '<button type="button" class="chip" data-act="bookPick" data-arg="' + esc(t) + '">' + esc(t) + "</button>").join("") + "</div>" : "") +
-    '<div class="row"><label class="fld">쪽<input id="bkP" type="text" inputmode="numeric" autocomplete="off" data-draft="bk.p" value="' + esc(draft("bk.p")) + '"></label>' +
+  const t = today(), A = S.act, wk = actWeek(A, t), n = wk.filter(d => d.kinds.indexOf("book") >= 0).length, goal = Math.max(1, Math.min(7, +LS.get("bookGoal", 5) || 5)), streak = actStreakOf(A, t, "book"), did = ((A.days[t] || {}).book || 0) > 0, names = ["월", "화", "수", "목", "금", "토", "주일"], list = shelfList();
+  let h = '<section class="sec"><h2>오늘</h2><p class="rd">' + (did ? "오늘 읽었습니다." : "오늘은 아직 읽지 않았습니다.") + (streak ? " <b>" + streak + "</b>일째 이어지고 있습니다." : "") + '</p><div class="week">' +
+    wk.map((d, i) => '<div class="day' + (d.today ? " today" : "") + '"><span class="wd">' + names[i] + '</span><span class="marks"><i class="mk' + (d.kinds.indexOf("book") >= 0 ? " on" : "") + '">독</i></span></div>').join("") + "</div>" +
+    '<p class="legend"><span>이번 주 ' + n + '일 읽음</span><label>한 주 목표 <select id="bkGoal" data-chg="goalSet">' + [3, 4, 5, 6, 7].map(g => '<option value="' + g + '"' + (g === goal ? " selected" : "") + ">" + g + "일</option>").join("") + "</select></label><span>" + (n >= goal ? "이번 주 목표를 채웠습니다." : "목표까지 " + (goal - n) + "일") + "</span></p></section>";
+  h += '<section class="sec"><h2>읽는 책</h2>' + (list.length ? '<ul class="shelf">' + list.map((b, i) => {
+    const pct = b.total && b.page ? Math.min(100, Math.round(b.page / b.total * 100)) : 0;
+    return '<li><p class="bt"><b>' + esc(b.t) + "</b>" + (b.last === t ? '<span class="kept">오늘 읽음</span>' : "") + '</p><p class="muted">' + (b.last ? esc(kdate(b.last)) + (b.page ? ", " + b.page + "쪽까지" : "") : "아직 읽은 기록이 없습니다.") + (b.total ? " · 전체 " + b.total + "쪽" + (pct ? " 가운데 " + pct + "%" : "") : "") + "</p>" +
+      (b.total ? '<div class="prog" role="img" aria-label="' + pct + '퍼센트 읽음"><i style="width:' + pct + '%"></i></div>' : "") +
+      '<div class="findrow"><input id="bkPg' + i + '" type="text" inputmode="numeric" autocomplete="off" aria-label="' + esc(b.t) + ' 오늘 읽은 데까지 쪽" placeholder="오늘 읽은 데까지(쪽, 비워도 됨)">' + btn("읽었습니다", "bookRead", reg({ t: b.t, i: i }), "pri") + "</div>" +
+      '<p class="acts">' + btn("한 줄 남기기", "bookNote", reg(b.t), "inl") + btn("다 읽었습니다", "bookDone", reg(b.t), "inl") + btn("목록에서 빼기", "bookOff", reg(b.t), "inl") + "</p></li>";
+  }).join("") + "</ul>" : '<p class="muted">읽는 책을 아래에 적어 두면 여기에 놓입니다. 날마다 「읽었습니다」만 눌러도 기록이 이어집니다.</p>') +
+    '<details class="pts"' + (list.length ? "" : " open") + '><summary>새 책 시작하기</summary><label class="fld">책 제목<input id="bkT" type="text" autocomplete="off" maxlength="60" data-draft="bk.t" value="' + esc(draft("bk.t")) + '"></label><label class="fld">전체 쪽수 (비워도 됩니다)<input id="bkTot" type="text" inputmode="numeric" autocomplete="off"></label>' + btn("읽기 시작", "bookNew", null, "pri wide") + "</details></section>";
+  if (S.note) h += '<section class="sec" id="noteSec"><h2>한 줄 남기기</h2><p class="when">' + esc(S.note) + '</p><div class="row"><label class="fld">쪽<input id="bkP" type="text" inputmode="numeric" autocomplete="off" data-draft="bk.p" value="' + esc(draft("bk.p")) + '"></label>' +
     '<label class="fld">관련 본문<input id="bkR" type="text" autocomplete="off" placeholder="예: 눅 19:1-10" data-draft="bk.r" value="' + esc(draft("bk.r")) + '"></label></div>' +
-    '<label class="fld">옮겨 적기와 생각<textarea id="bkX" rows="6" data-draft="bk.x">' + esc(draft("bk.x")) + "</textarea></label>" + btn("독서 기록 저장", "bookSave", null, "pri wide") +
-    '<p class="foot">' + btn("이번 달 독서 기록 읽기", "readMonth", "독서", "inl") + "</p></section>";
+    '<label class="fld">옮겨 적기와 생각<textarea id="bkX" rows="5" data-draft="bk.x">' + esc(draft("bk.x")) + '</textarea></label><label class="chk"><input id="bkI" type="checkbox"> 예화로도 넘기기</label><div class="row two">' + btn("남기기", "bookSave", null, "pri") + btn("그만두기", "noteCancel") + "</div></section>";
+  return h + '<section class="sec"><h2>이번 달에 남긴 것</h2><div id="notesPart">' + notesHtml() + "</div></section>";
 }
 
 /* ---------- 화면: 찾기 ---------- */
@@ -587,7 +648,7 @@ function updApply() { LS.set("updTry", { n: S.upd.want, t: Date.now() }); locati
 function closeReader() { const r = S.reader; S.reader = null; render(); if (r) window.scrollTo(0, r.y || 0); }
 function keepY(fn) { const y = window.scrollY; fn(); window.scrollTo(0, y); }
 const ACT = {
-  tab(t) { U.tab = TITLE[t] ? t : "prep"; saveUi(); S.copy = ""; S.reader = null; S.edit = null; S.word = null; render(); window.scrollTo(0, 0); enter(); },
+  tab(t) { U.tab = TITLE[t] ? t : "prep"; saveUi(); S.copy = ""; S.reader = null; S.edit = null; S.word = null; S.del = null; render(); window.scrollTo(0, 0); enter(); },
   flashX() { flash(""); },
   login(mode) {
     if (!clientId()) { flash("연결 값(클라이언트 ID)을 먼저 넣어 주십시오.", "bad"); return; }
@@ -650,7 +711,7 @@ const ACT = {
     S.preps = (S.preps || []); S.preps.unshift({ id: made.id, name: title, info: parsePrepTitle(title), label: label });
     U.step = 1; return openPrep(made.id);
   },
-  step(no) { U.step = U.step === +no ? 0 : +no; saveUi(); S.copy = ""; S.edit = null; S.word = null; S.clash = null; render(); scrollStep(); enter(); },
+  step(no) { U.step = U.step === +no ? 0 : +no; saveUi(); S.copy = ""; S.edit = null; S.del = null; S.word = null; S.clash = null; render(); scrollStep(); enter(); },
   async memoSave(arg) {
     const no = +arg, P = S.prep, key = "p." + P.id + "." + no, el = $("memo" + no), text = String(el ? el.value : draft(key)).trim();
     if (!text) { flash("적은 것이 없습니다.", "bad"); return; }
@@ -658,7 +719,7 @@ const ACT = {
     await docInsert(P.id, no, lines);
     draftSet(key, ""); await prepRefresh(); recordAct("prep", P.label + ", " + stepOf(no).title); flash("메모를 저장했습니다."); keepY(render);
   },
-  lineEdit(arg) { const p = String(arg).split(":"); S.edit = { no: +p[0], k: +p[1], empty: false }; keepY(render); const el = $("lineBox"); if (el) el.focus(); },
+  lineEdit(arg) { const p = String(arg).split(":"); S.del = null; S.edit = { no: +p[0], k: +p[1], empty: false }; keepY(render); const el = $("lineBox"); if (el) el.focus(); },
   lineCancel() { S.edit = null; keepY(render); },
   async lineSave() {
     const E = S.edit, P = S.prep; if (!E || !P) return;
@@ -697,15 +758,59 @@ const ACT = {
     await docInsert(doc.id, 0, ["[묵상] " + ymd(when) + " " + label].concat(text.split("\n").map(x => x.trim()).filter(Boolean)));
     draftSet(key, ""); recordAct("qt", label); flash("묵상을 저장했습니다."); keepY(render);
   },
-  bookPick(t) { draftSet("bk.t", t); render(); },
+  goalSet(v) { LS.set("bookGoal", Math.max(1, Math.min(7, +v || 5))); render(); },
+  bookNew() {
+    const t = val("bkT").slice(0, 60), tot = parseInt(val("bkTot"), 10) || 0; if (!t) { flash("책 제목을 적어 주십시오.", "bad"); return; }
+    const meta = LS.get("shelf", {}) || {}; meta[t] = { total: tot || (meta[t] || {}).total || 0, at: today() }; LS.set("shelf", meta);
+    LS.set("shelfOff", (LS.get("shelfOff", []) || []).filter(x => x !== t)); draftSet("bk.t", ""); flash("「" + t + "」를 읽는 책에 놓았습니다."); render();
+  },
+  bookRead(arg) { const it = R[+arg]; if (!it) return; const p = parseInt(val("bkPg" + it.i), 10) || 0; recordAct("book", it.t + (p ? ", " + p + "쪽" : "")); flash("「" + it.t + "」 읽은 것으로 적었습니다." + (p ? " " + p + "쪽까지." : "")); render(); },
+  bookDone(arg) {
+    const t = R[+arg]; if (!t) return;
+    if (S.del !== "d" + t) { S.del = "d" + t; flash("「" + t + "」를 다 읽은 것으로 적으려면 한 번 더 눌러 주십시오."); return; }
+    S.del = null; recordAct("book", t + ", 완독"); flash("「" + t + "」를 다 읽었습니다."); render();
+  },
+  bookOff(arg) { const t = R[+arg]; if (!t) return; LS.set("shelfOff", (LS.get("shelfOff", []) || []).filter(x => x !== t).concat([t])); if (S.note === t) S.note = ""; flash("「" + t + "」를 목록에서 뺐습니다. 읽은 기록은 그대로 있습니다."); render(); },
+  bookNote(arg) { const t = R[+arg]; if (!t) return; S.note = t; render(); const el = $("noteSec"); if (el && el.scrollIntoView) el.scrollIntoView({ block: "start" }); },
+  noteCancel() { S.note = ""; render(); },
   async bookSave() {
-    const t = val("bkT"), p = val("bkP"), r = val("bkR"), x = val("bkX");
-    if (!t) { flash("책 제목을 적어 주십시오.", "bad"); return; }
+    const t = S.note, p = val("bkP"), r = val("bkR"), x = val("bkX"), ill = !!($("bkI") && $("bkI").checked); if (!t) return;
     if (!x) { flash("적은 것이 없습니다.", "bad"); return; }
-    const when = new Date(), doc = await monthDoc("독서", when);
-    await docInsert(doc.id, 0, ["[독서] " + ymd(when) + " " + t + (p ? ", " + p + "쪽" : "") + (r ? ", 관련 본문 " + r : "")].concat(x.split("\n").map(y => y.trim()).filter(Boolean)));
-    LS.set("books", [t].concat((LS.get("books", []) || []).filter(y => y !== t)).slice(0, 6));
-    draftSet("bk.p", ""); draftSet("bk.x", ""); draftSet("bk.r", ""); recordAct("book", t + (p ? ", " + p + "쪽" : "")); flash("독서 기록을 저장했습니다."); render();
+    const when = new Date(), body = x.split("\n").map(y => y.trim()).filter(Boolean), head = " " + ymd(when) + " " + t + (p ? ", " + p + "쪽" : "") + (r ? ", 관련 본문 " + r : "");
+    await docInsert((await monthDoc("독서", when)).id, 0, ["[독서]" + head].concat(body));
+    if (ill) await docInsert((await monthDoc("예화", when)).id, 0, ["[예화]" + head].concat(body));
+    draftSet("bk.p", ""); draftSet("bk.x", ""); draftSet("bk.r", "");
+    const st = bookStats(S.act)[t]; if (!st || st.last !== today() || p) recordAct("book", t + (p ? ", " + p + "쪽" : ""));
+    S.note = ""; S.notes = null; flash(ill ? "남겼습니다. 이달 예화 모음에도 넣었습니다." : "남겼습니다."); render();
+  },
+  async notesLoad() {
+    S.notes = { st: "ing", items: [] }; S.del = null; paintNotes();
+    try {
+      const items = [];
+      for (const kind of ["독서", "예화"]) { const f = await findInMy(kind + "_" + ym(new Date())); if (!f) continue; (await docBlocks(f.id)).forEach(b => items.push({ id: f.id, kind: kind, head: b.head, lines: b.lines, k: b.k })); }
+      S.notes = { st: "ok", items: items.reverse() };
+    } catch (e) { S.notes = { st: "err", items: [], err: explain(e) }; if (e.code === "login" || e.code === "scope") fail(e); }
+    paintNotes();
+  },
+  async noteDel(arg) {
+    const x = S.notes && S.notes.items[+arg]; if (!x) return;
+    if (S.del !== "n" + arg) { S.del = "n" + arg; paintNotes(); return; }
+    S.del = null;
+    try { await docBlockDel(x.id, x.head, x.k); } catch (e) { if (e.code !== "conflict") throw e; flash("그사이 이 기록이 바뀌어 지우지 않았습니다. 새로 불러왔습니다.", "bad"); return ACT.notesLoad(); }
+    flash("지웠습니다."); return ACT.notesLoad();
+  },
+  async lineDel(arg) {
+    const p = String(arg).split(":"), no = +p[0], k = +p[1], P = S.prep; if (!P) return;
+    if (S.del !== "l" + arg) { S.del = "l" + arg; S.edit = null; keepY(render); return; }
+    S.del = null; const old = stepInfo(no).lines[k];
+    try { await docLine(P.id, no, k, old, ""); }
+    catch (e) { if (e.code !== "conflict") throw e; await prepRefresh(); keepY(render); flash("그사이 이 줄이 바뀌어 지우지 않았습니다. 새로 불러왔습니다.", "bad"); return; }
+    await prepRefresh(); flash("지웠습니다."); keepY(render);
+  },
+  wordGo(arg) {
+    const p = String(arg).split(":"); S.word = { b: +p[0], ch: +p[1], v: p[2], i: +p[3] }; S.more = {}; render();
+    const el = $("ov" + p[2]); if (el && el.scrollIntoView) el.scrollIntoView({ block: "center" });
+    const x = wordNow(); if (x) return wordNeed(x.parts).then(paintWord, e => { paintWord(); throw e; });
   },
   async find() {
     const q = val("q") || draft("q"); if (!q) { flash("찾을 말을 적어 주십시오.", "bad"); return; }

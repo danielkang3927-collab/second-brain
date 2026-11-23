@@ -3,14 +3,14 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<meta name="sb-build" content="7">
+<meta name="sb-build" content="8">
 <meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'self'; style-src 'unsafe-inline'; img-src 'self' data:; connect-src 'self' https://www.googleapis.com https://docs.googleapis.com; manifest-src 'self'; base-uri 'none'; form-action 'none'">
 <meta name="referrer" content="no-referrer">
 <meta name="robots" content="noindex, nofollow">
 <title>세컨브레인</title>
-<link rel="icon" type="image/png" href="icons/icon-192.png?v=7">
-<link rel="apple-touch-icon" href="icons/icon-180.png?v=7">
-<link rel="manifest" href="manifest.json?v=7">
+<link rel="icon" type="image/png" href="icons/icon-192.png?v=8">
+<link rel="apple-touch-icon" href="icons/icon-180.png?v=8">
+<link rel="manifest" href="manifest.json?v=8">
 <meta name="apple-mobile-web-app-title" content="세컨브레인">
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -132,7 +132,7 @@ button{font:inherit;color:inherit;cursor:pointer;-webkit-tap-highlight-color:tra
 .memos li{display:flex;align-items:flex-start;gap:8px;padding:4px 0;font-size:.9375rem}
 .memos .mt{flex:1;min-width:0}
 .memos .lk{font-size:inherit}
-.ed{flex:none;background:none;border:0;padding:2px 0 2px 6px;color:var(--muted);font-size:.8125rem}
+.ed,.rm{flex:none;background:none;border:0;padding:2px 0 2px 6px;color:var(--muted);font-size:.8125rem}
 .memos li.editing{display:block}
 .memos li.editing textarea{display:block;width:100%;font:inherit;color:var(--ink);background:var(--wash);border:1px solid var(--rule);border-radius:8px;padding:10px 12px;margin-bottom:8px;line-height:1.6}
 .fld textarea.write{min-height:40vh;field-sizing:content}
@@ -223,6 +223,31 @@ button{font:inherit;color:inherit;cursor:pointer;-webkit-tap-highlight-color:tra
 .tab[aria-current="page"]{color:var(--spine);font-weight:700;box-shadow:inset 0 3px 0 var(--spine)}
 @media (min-width:700px){ .v{font-size:1.125rem} .sb{padding-left:33px} }
 @media (prefers-reduced-motion: no-preference){ .b,.tab,.seg{transition:opacity .12s} }
+.rm.sure{color:var(--ribbon);font-weight:700}
+.rd{font-size:1.0625rem;margin-bottom:12px}
+.legend label{display:inline-flex;align-items:center;gap:6px}
+.legend select{font:inherit;color:var(--ink);background:var(--wash);border:1px solid var(--rule);border-radius:6px;padding:2px 4px}
+.shelf li{padding:14px 0;border-top:1px solid var(--rule)}
+.shelf li:first-child{border-top:0;padding-top:0}
+.shelf .bt{display:flex;align-items:baseline;gap:8px;justify-content:space-between}
+.shelf .muted{margin:2px 0 8px}
+.prog{height:6px;border-radius:3px;background:var(--wash);overflow:hidden;margin:0 0 10px}
+.prog i{display:block;height:100%;background:var(--spine)}
+.acts{display:flex;flex-wrap:wrap;gap:4px 16px}
+.chk{display:flex;align-items:center;gap:8px;margin:0 0 12px;font-size:.9375rem}
+.chk input{width:20px;height:20px}
+.notes li{padding:10px 0;border-top:1px solid var(--rule);font-size:.9375rem}
+.notes li:first-child{border-top:0}
+.notes .nh{color:var(--muted);font-size:.8125rem}
+.og{margin:0 0 16px;padding:10px 12px;border:1px solid var(--rule);border-radius:10px;background:var(--wash);font-size:.9375rem}
+.og summary{cursor:pointer;font-weight:700;color:var(--spine);min-height:32px;display:flex;align-items:center}
+.og .how{list-style:decimal;margin:6px 0 4px 1.3em}
+.og .how li{margin:3px 0}
+.og h4{margin:14px 0 2px;font-size:.9375rem}
+.og .muted{font-size:.8125rem;margin-bottom:8px}
+.og .chips{margin:0 0 4px}
+.og .chip{text-align:left}
+.cx{color:var(--muted);font-size:.75rem}
 </style>
 </head>
 <body>
@@ -230,9 +255,9 @@ button{font:inherit;color:inherit;cursor:pointer;-webkit-tap-highlight-color:tra
 <main id="sbMain" class="wrap"></main>
 <nav id="sbNav" class="nav" aria-label="화면 고르기"></nav>
 <noscript><p style="padding:24px">이 앱은 자바스크립트가 켜져 있어야 열립니다.</p></noscript>
-<script src="js/data.js?v=7"></script>
-<script src="js/core.js?v=7"></script>
-<script src="js/drive.js?v=7"></script>
-<script src="js/app.js?v=7"></script>
+<script src="js/data.js?v=8"></script>
+<script src="js/core.js?v=8"></script>
+<script src="js/drive.js?v=8"></script>
+<script src="js/app.js?v=8"></script>
 </body>
 </html>

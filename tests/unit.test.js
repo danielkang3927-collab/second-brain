@@ -154,5 +154,19 @@ eq("12주 표 크기", [g.length, g[0].length, g[11][0].d, g[0][0].d], [12, 7, "
 eq("12주 표: 지난주 주일 칸", g[10][6], { d: "2026-11-22", n: 1, future: false });
 eq("달이 바뀌는 날 더하기", [C.dayAdd("2026-03-01", -1), C.dayAdd("2026-12-31", 1)], ["2026-02-28", "2027-01-01"]);
 
+/* 8판: 기록 덩이, 책별 독서 현황 */
+const md2 = docOf([["HEADING_1", "독서 2026-11"], ["NORMAL_TEXT", "[독서] 2026-11-24 책, 45쪽"], ["NORMAL_TEXT", "줄1"], ["NORMAL_TEXT", "[독서] 2026-11-24 책"], ["NORMAL_TEXT", "줄2"]]);
+const B2 = C.blocksRead(md2);
+eq("기록 덩이 읽기", B2.blocks.map(b => [b.head, b.lines, b.k, b.kind]), [["[독서] 2026-11-24 책, 45쪽", ["줄1"], 0, "독서"], ["[독서] 2026-11-24 책", ["줄2"], 0, "독서"]]);
+eq("가운데 덩이 지우기: 다음 덩이 앞까지", C.blockRequests(md2, "[독서] 2026-11-24 책, 45쪽", 0).requests[0].deleteContentRange.range.endIndex, B2.blocks[1].a);
+const q9 = C.blockRequests(md2, "[독서] 2026-11-24 책", 0).requests[0].deleteContentRange.range;
+eq("끝 덩이 지우기: 앞 줄바꿈부터 문서 끝 앞까지", [q9.startIndex, q9.endIndex], [B2.blocks[1].a - 1, B2.end - 1]);
+ok("없는 덩이는 conflict", C.blockRequests(md2, "[독서] 2026-11-01 없음", 0).conflict === true);
+let a9 = C.actAdd(null, "book", "책, 45쪽", new Date(2026, 10, 23, 9)); a9 = C.actAdd(a9, "book", "책", new Date(2026, 10, 24, 9)); a9 = C.actAdd(a9, "book", "둘째 책, 완독", new Date(2026, 10, 24, 10));
+const st9 = C.bookStats(a9);
+eq("책별 현황: 쪽은 마지막으로 적은 값, 날은 마지막 읽은 날", st9["책"], { t: "책", page: 45, last: "2026-11-24", done: false, n: 2 });
+ok("책별 현황: 완독 표시", st9["둘째 책"].done === true);
+eq("독서만의 이어진 날", [C.actStreakOf(a9, "2026-11-24", "book"), C.actStreakOf(a9, "2026-11-25", "book"), C.actStreakOf(a9, "2026-11-24", "qt")], [2, 2, 0]);
+
 console.log("단위 점검: 됨 " + pass + ", 안 됨 " + fail);
 process.exit(fail ? 1 : 0);

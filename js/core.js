@@ -1,6 +1,6 @@
 /* 세컨브레인 — 계산과 기기 저장. 화면과 떨어져 있어 따로 시험할 수 있다. */
 "use strict";
-const BUILD = 7;
+const BUILD = 8;
 
 /* ---------- 작은 도구 ---------- */
 const esc = s => String(s == null ? "" : s).replace(/[&<>"']/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
@@ -308,4 +308,43 @@ function actWeeks12(a, today) {
   return weeks;
 }
 
-if (typeof module !== "undefined") module.exports = { BUILD, esc, ymd, ym, stamp, dayAdd, safeUrl, unesc, book, bookByName, chapterTitle, passageLabel, shortLabel, prepTitle, parsePrepTitle, parseVerses, parseChapter, prepTemplate, docIdOf, splitLinks, docRoot, paraLine, prepRead, toSegs, memoRequests, lineRequests, bodyRequests, mdHtml, logosPrompt, actEmpty, actNorm, actMerge, actTotal, actSame, actAdd, actStreak, actWeek, actWeeks12 };
+/* 달 문서(독서·묵상·예화)의 기록 덩이. "[종류] 날짜 …" 줄에서 다음 덩이 앞까지가 한 덩이다. k: 머리줄이 같은 덩이 가운데 몇 번째인가 */
+const BLOCK_HEAD = /^\[(독서|묵상|예화)\] \d{4}-\d{2}-\d{2}/;
+function blocksRead(doc) {
+  const body = doc.tabs[0].documentTab.body.content, out = []; let cur = null, last = 1;
+  for (const el of body) {
+    if (el.endIndex) last = el.endIndex;
+    const p = el.paragraph; if (!p) { if (cur) cur.b = el.endIndex; continue; }
+    const st = (p.paragraphStyle && p.paragraphStyle.namedStyleType) || "", line = paraLine(p), plain = line.trim();
+    if (/^(HEADING|TITLE)/.test(st)) { cur = null; continue; }
+    if (BLOCK_HEAD.test(plain)) { cur = { head: plain, kind: plain.slice(1, 3), lines: [], a: el.startIndex, b: el.endIndex }; out.push(cur); continue; }
+    if (cur) { cur.b = el.endIndex; if (plain) cur.lines.push(line); }
+  }
+  out.forEach(x => { x.k = out.filter(y => y.head === x.head && y.a < x.a).length; });
+  return { blocks: out, end: last };
+}
+/* 기록 덩이 하나를 지우는 요청. 못 찾으면 { conflict: true }. 문서 맨 끝 덩이는 앞 줄바꿈부터 지운다(문서의 마지막 줄바꿈은 지울 수 없다) */
+function blockRequests(doc, head, k) {
+  const B = blocksRead(doc), x = B.blocks.filter(y => y.head === head)[k || 0]; if (!x) return { conflict: true };
+  const tabId = doc.tabs[0].tabProperties.tabId; let a = x.a, b = x.b;
+  if (b >= B.end) { b = B.end - 1; if (a > 1) a -= 1; }
+  if (b <= a) return { conflict: true };
+  return { documentId: doc.documentId, requests: [{ deleteContentRange: { range: { startIndex: a, endIndex: b, tabId: tabId } } }], writeControl: { requiredRevisionId: doc.revisionId } };
+}
+/* 한 종류만의 이어진 날 수 */
+function actStreakOf(a, today, kind) {
+  const A = actNorm(a), has = d => ((A.days[d] || {})[kind] || 0) > 0; let d = today; if (!has(d)) d = dayAdd(d, -1);
+  let n = 0; while (has(d)) { n++; d = dayAdd(d, -1); }
+  return n;
+}
+/* 책별 독서 현황. 기록 한 줄은 "제목", "제목, 45쪽", "제목, 완독" 모양이다 */
+function bookStats(a) {
+  const A = actNorm(a), m = {};
+  for (const e of A.log.slice().sort((x, y) => (x.id < y.id ? -1 : 1))) {
+    if (e.k !== "book") continue; const x = e.n.match(/^(.*?)(?:, (\d+)쪽)?(, 완독)?$/), t = x[1].trim(); if (!t) continue;
+    const r = m[t] || (m[t] = { t: t, page: 0, last: "", done: false, n: 0 }); r.last = e.d; r.n++; if (x[2]) r.page = +x[2]; r.done = !!x[3];
+  }
+  return m;
+}
+
+if (typeof module !== "undefined") module.exports = { BUILD, esc, ymd, ym, stamp, dayAdd, safeUrl, unesc, book, bookByName, chapterTitle, passageLabel, shortLabel, prepTitle, parsePrepTitle, parseVerses, parseChapter, prepTemplate, docIdOf, splitLinks, docRoot, paraLine, prepRead, toSegs, memoRequests, lineRequests, bodyRequests, mdHtml, logosPrompt, actEmpty, actNorm, actMerge, actTotal, actSame, actAdd, actStreak, actWeek, actWeeks12, blocksRead, blockRequests, actStreakOf, bookStats };
