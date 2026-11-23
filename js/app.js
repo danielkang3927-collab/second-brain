@@ -10,7 +10,7 @@ const WD = ["주일", "월요일", "화요일", "수요일", "목요일", "금�
 const U = Object.assign({ tab: "prep", prepId: "", step: 1, b: 0, ch: 1, ver: "a", whole: false }, LS.get("ui", null) || {});
 const S = {
   act: actNorm(LS.get("act", null)), preps: null, prepsSt: "", prepsErr: "", prep: null, prepSt: "", prepErr: "",
-  chap: {}, bri: {}, orig: {}, lex: {}, idx: {}, morph: null, word: null, more: {}, goto: null, hit: null, find: null, flash: null, reader: null, edit: null, clash: null, del: null, note: "", notes: null, freq: null,
+  chap: {}, bri: {}, orig: {}, lex: {}, idx: {}, morph: null, word: null, more: {}, goto: null, hit: null, find: null, flash: null, reader: null, edit: null, clash: null, del: null, note: "", notes: null, freq: null, rec: null,
   sync: { st: "", at: LS.get("syncAt", 0), err: "" }, upd: { want: 0 }, check: null, checking: false, gate: "", gateMode: "", copy: ""
 };
 const R = [];
@@ -516,9 +516,29 @@ function stepBody(s) {
     h += '<div class="logos">' + btn("로고스 연구 맡길 말 복사", "logos", s.no) + '<p class="muted">복사한 말을 Claude 대화에 붙여 넣으면, 로고스 서재에서 찾은 내용을 이 칸에 넣어 달라는 부탁이 됩니다.</p>' +
       (S.copy ? '<textarea class="copy" rows="6" readonly>' + esc(S.copy) + "</textarea>" : "") + "</div>";
   }
+  if (s.kinds.indexOf("예화") >= 0) h += recHtml();
   if (s.write) h += writeHtml(s, info);
   else h += memosHtml(s, info) + '<label class="fld">메모<textarea id="memo' + s.no + '" rows="4" data-draft="' + esc(key) + '">' + esc(draft(key)) + "</textarea></label>" + btn("메모 저장", "memoSave", s.no, "pri wide");
   return h + (next ? '<p class="next">' + btn("다음: " + next.no + ". " + esc(next.title), "step", next.no, "inl") + "</p>" : "");
+}
+
+/* 예화 추천: 준비하며 적은 글(관찰, 해석, 문단신학, 적용, 설교 지도)에서 낱말을 뽑아 예화 창고를 찾고, 낱말이 많이 겹치는 예화부터 놓는다 */
+function recWords() {
+  const P = S.prep; if (!P) return [];
+  const text = [7, 8, 5, 2, 10].map(no => stepInfo(no).lines.filter(m => m.indexOf("담음:") < 0).map(m => splitLinks(m, true).filter(p => !p.url).map(p => p.t).join("").replace(/^\d\d-\d\d \d\d:\d\d /, "")).join(" ")).join(" ");
+  return keywordsOf(text, 8);
+}
+function recHtml() {
+  const P = S.prep, key = "rec." + P.id, auto = recWords(), cur = draft(key) || auto.join(" "), X = S.rec && S.rec.id === P.id ? S.rec : null;
+  let h = '<div class="rec"><label class="fld">예화를 찾을 낱말<input id="recQ" type="text" autocomplete="off" data-draft="' + esc(key) + '" data-enter="recFind" value="' + esc(cur) + '"></label><p class="muted">' + (auto.length ? "문단신학, 적용, 해석, 관찰 칸에 적은 글에서 자주 나온 낱말을 뽑았습니다. 고치거나 더해도 됩니다." : "문단신학과 적용 칸에 글을 적으면 거기서 낱말을 뽑아 줍니다. 지금은 직접 적어 주십시오.") + "</p>" + btn("맞는 예화 찾기", "recFind", null, "wide");
+  if (!X) return h + "</div>";
+  if (X.st === "ing") return h + '<p class="muted">예화 창고를 찾는 중입니다.</p></div>';
+  if (X.st === "err") return h + '<p class="muted">' + esc(X.err) + "</p></div>";
+  if (!X.items.length) return h + '<p class="muted">이 낱말이 들어 있는 예화를 찾지 못했습니다. 낱말을 바꿔 보십시오.</p></div>';
+  return h + '<h4 class="lh">추천 예화 ' + X.items.length + '</h4><p class="muted">낱말이 많이 겹치는 예화부터 놓았습니다. 뜻이 맞는지는 읽어 보고 정해 주십시오.</p><ol class="links recs">' + X.items.map(r => {
+    const url = docUrl(r.f.id), keep = { step: stepFor("예화"), text: r.f.name, url: url, extra: "예화" }, kept = stepInfo(keep.step).lines.some(m => m.indexOf(url) >= 0);
+    return "<li>" + docBtn(r.f.name, url, keep) + '<span class="ex">' + esc(r.hits.join(", ")) + "</span>" + (kept ? '<span class="kept">담음</span>' : btn("담기", "keep", reg(keep), "inl")) + "</li>";
+  }).join("") + "</ol></div>";
 }
 
 /* ---------- 화면: 성경 ---------- */
@@ -584,18 +604,20 @@ function groupOf(f) { const p = (f.parents || [])[0], F = D.FOLDERS; return p ==
 function findView() {
   const F = S.find;
   let h = '<section class="sec"><div class="findrow"><input id="q" type="search" enterkeyhint="search" autocomplete="off" aria-label="찾을 말" placeholder="낱말이나 문장" data-draft="q" data-enter="find" value="' + esc(draft("q")) + '">' + btn("찾기", "find", null, "pri") + "</div>" +
-    '<p class="muted">설교 요지, 예화, 원고, 내 설교, 독서, 성경 본문, 내 기록에서 찾습니다.</p></section>';
+    '<p class="muted">낱말이나 문장을 적거나, 자판의 마이크로 말해도 됩니다. 설교 요지, 예화, 원고, 내 설교, 독서, 성경 본문, 내 기록에서 찾습니다.</p></section>';
   if (!F) return h;
   if (F.st === "ing") return h + '<section class="sec"><p class="muted">찾는 중입니다.</p></section>';
   if (F.st === "err") return h + '<section class="sec"><p class="muted">' + esc(F.err) + "</p></section>";
   if (!F.files.length) return h + '<section class="sec"><p class="muted">「' + esc(F.q) + "」가 들어 있는 자료를 찾지 못했습니다. 다른 낱말로 찾아 보십시오.</p></section>";
   if (S.prep) h += '<p class="when">담기를 누르면 지금 준비(' + esc(S.prep.label) + ")에 들어갑니다.</p>";
+  if (F.kws && F.kws.length) h += '<p class="when">말한 그대로 들어 있는 자료를 먼저, 그다음은 낱말(' + esc(F.kws.join(", ")) + ")이 많이 겹치는 차례로 놓았습니다.</p>";
+  const hitTag = f => F.kws && F.kws.length ? '<span class="ex">' + (f.whole ? "그대로" : "낱말 " + (f.hits || []).length + "/" + F.kws.length) + "</span>" : "";
   for (const g of GROUPS) {
     const arr = F.files.filter(f => groupOf(f) === g); if (!arr.length) continue;
     h += '<section class="sec"><h2>' + g + " " + arr.length + '</h2><ul class="links">' + arr.map(f => {
       if (g === "성경") { const m = String(f.name).match(/^(\d\d)_(.+?) 0*(\d+)(장|편)$/), b = m && bookByName(m[2]); if (b) return "<li>" + '<button type="button" class="lk" data-act="chOpen" data-arg="' + b.i + ":" + (+m[3]) + '">' + esc(b.name + " " + (+m[3]) + m[4]) + "</button></li>"; }
       const url = docUrl(f.id), can = S.prep && g !== "성경" && g !== "내 기록", keep = can ? { step: keepNo(g), text: f.name, url: url, extra: g } : null;
-      return "<li>" + docBtn(f.name, url, keep) + (can ? (stepInfo(keep.step).lines.some(m => m.indexOf(url) >= 0) ? '<span class="kept">담음</span>' : btn("담기", "keep", reg(keep), "inl")) : "") + "</li>";
+      return "<li>" + docBtn(f.name, url, keep) + hitTag(f) + (can ? (stepInfo(keep.step).lines.some(m => m.indexOf(url) >= 0) ? '<span class="kept">담음</span>' : btn("담기", "keep", reg(keep), "inl")) : "") + "</li>";
     }).join("") + "</ul></section>";
   }
   return h;
@@ -812,6 +834,18 @@ const ACT = {
     const el = $("ov" + p[2]); if (el && el.scrollIntoView) el.scrollIntoView({ block: "center" });
     const x = wordNow(); if (x) return wordNeed(x.parts).then(paintWord, e => { paintWord(); throw e; });
   },
+  async recFind() {
+    const P = S.prep; if (!P) return;
+    const kws = Array.from(new Set((val("recQ") || recWords().join(" ")).split(/[\s,]+/).filter(w => w.length >= 2))).slice(0, 10);
+    if (!kws.length) { flash("찾을 낱말을 적어 주십시오.", "bad"); return; }
+    S.rec = { id: P.id, st: "ing", items: [] }; keepY(render);
+    try {
+      const my = LS.get("myFolder", ""), where = " and ('" + D.FOLDERS.illust + "' in parents" + (my ? " or ('" + q1(my) + "' in parents and name contains '예화_')" : "") + ")";
+      const got = await Promise.all(kws.map(k => gList("fullText contains '" + q1(k) + "'" + where, { size: 40 }).catch(() => [])));
+      S.rec = { id: P.id, st: "ok", items: rankFiles(kws.map((k, i) => ({ kw: k, files: got[i] }))).slice(0, 20) };
+    } catch (e) { S.rec = { id: P.id, st: "err", items: [], err: explain(e) }; if (e.code === "login" || e.code === "scope") fail(e); }
+    if (S.prep === P && !S.reader) keepY(render);
+  },
   async find() {
     const q = val("q") || draft("q"); if (!q) { flash("찾을 말을 적어 주십시오.", "bad"); return; }
     if (S.find && S.find.st === "ing") return;
@@ -819,7 +853,11 @@ const ACT = {
     try {
       const F = D.FOLDERS, ps = ["bible", "yoji", "illust", "mine", "manu", "read", "method", "memo"].map(k => "'" + F[k] + "' in parents"), my = LS.get("myFolder", ""); if (my) ps.push("'" + q1(my) + "' in parents");
       const bf = await bookFolders(); Object.keys(bf).forEach(k => ps.push("'" + q1(bf[k]) + "' in parents"));
-      S.find = { st: "ok", q: q, files: await gList("fullText contains '" + q1(q) + "' and (" + ps.join(" or ") + ")", { size: 40 }) };
+      /* 문장 그대로 찾고, 낱말로도 나눠 찾아 많이 겹치는 자료부터 놓는다 */
+      const where = " and (" + ps.join(" or ") + ")", kws = keywordsOf(q, 6).filter(k => k !== q), one = (t, n) => gList("fullText contains '" + q1(t) + "'" + where, { size: n });
+      const got = await Promise.all([one(q, 40)].concat(kws.map(k => one(k, 30).catch(() => []))));
+      const ranked = rankFiles([{ kw: "", files: got[0], bonus: 10 }].concat(kws.map((k, i) => ({ kw: k, files: got[i + 1] }))));
+      S.find = { st: "ok", q: q, kws: kws, files: ranked.slice(0, 60).map(r => Object.assign({}, r.f, { hits: r.hits, whole: r.score >= 10 })) };
     } catch (e) { S.find = { st: "err", q: q, err: explain(e) }; if (e.code === "login" || e.code === "scope") fail(e); }
     if (!S.reader) render();
   },

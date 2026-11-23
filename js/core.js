@@ -1,6 +1,6 @@
 /* 세컨브레인 — 계산과 기기 저장. 화면과 떨어져 있어 따로 시험할 수 있다. */
 "use strict";
-const BUILD = 8;
+const BUILD = 9;
 
 /* ---------- 작은 도구 ---------- */
 const esc = s => String(s == null ? "" : s).replace(/[&<>"']/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
@@ -221,7 +221,8 @@ function mdInline(s, linkFn) {
 }
 function mdHtml(md, linkFn) {
   const link = linkFn || ((t, u) => '<a href="' + esc(safeUrl(u)) + '" target="_blank" rel="noopener">' + esc(t) + "</a>");
-  const src = String(md || "").replace(/\r/g, "").split("\n"), out = []; let list = "", table = null;
+  /* 구글 문서는 "1~11장과 12~50장"의 물결표 사이를 취소선으로 바꿔 "1~~11장과 12~~50장"으로 내보낸다. 물결표 하나로 되돌린다 */
+  const src = String(md || "").replace(/\r/g, "").replace(/\\?~~/g, "~").replace(/\\~/g, "~").split("\n"), out = []; let list = "", table = null;
   const closeList = () => { if (list) { out.push("</" + list + ">"); list = ""; } };
   const closeTable = () => { if (table) { out.push('<div class="tbl"><table>' + table.map((r, i) => "<tr>" + r.map(c => (i ? "<td>" : "<th>") + mdInline(c, link) + (i ? "</td>" : "</th>")).join("") + "</tr>").join("") + "</table></div>"); table = null; } };
   for (const rawLine of src) {
@@ -347,4 +348,23 @@ function bookStats(a) {
   return m;
 }
 
-if (typeof module !== "undefined") module.exports = { BUILD, esc, ymd, ym, stamp, dayAdd, safeUrl, unesc, book, bookByName, chapterTitle, passageLabel, shortLabel, prepTitle, parsePrepTitle, parseVerses, parseChapter, prepTemplate, docIdOf, splitLinks, docRoot, paraLine, prepRead, toSegs, memoRequests, lineRequests, bodyRequests, mdHtml, logosPrompt, actEmpty, actNorm, actMerge, actTotal, actSame, actAdd, actStreak, actWeek, actWeeks12, blocksRead, blockRequests, actStreakOf, bookStats };
+/* 말이나 글에서 찾을 낱말을 뽑는다. 조사와 흔한 어미를 떼고, 어디에나 나오는 말은 뺀다. 많이 나온 낱말부터, 같으면 먼저 나온 것부터 */
+const KW_STOP = new Set("그리고 그러나 그래서 그런데 하지만 또한 우리 이것 그것 저것 여기 거기 무엇 어떻게 누구 있다 없다 하다 되다 이다 같다 대한 위한 통해 때문 하나님 예수님 예수 주님 말씀 본문 성경 오늘 지금 모든 어떤 이런 그런 정말 너무 아주 매우 가장 설교 예화 담음 메모".split(" "));
+const KW_TAIL = /(으로부터|에서부터|이라는|으로써|으로서|에게서|에서는|에서도|으로는|에게는|이라고|라는|라고|에서|에게|으로|부터|까지|처럼|보다|하고|이나|이며|이고|하는|하여|해서|하면|하신|하심|했던|했다|한다|합니다|입니다|습니다|였다|이다|은|는|이|가|을|를|의|에|와|과|도|만|로)$/;
+function keywordsOf(text, max) {
+  const cnt = new Map(); let i = 0;
+  for (const raw of String(text || "").match(/[가-힣A-Za-z]{2,}/g) || []) {
+    let w = raw; const cut = w.replace(KW_TAIL, ""); if (cut.length >= 2) w = cut;
+    if (KW_STOP.has(w) || KW_STOP.has(raw)) continue;
+    const r = cnt.get(w) || { w: w, n: 0, at: i++ }; r.n++; cnt.set(w, r);
+  }
+  return Array.from(cnt.values()).sort((x, y) => y.n - x.n || x.at - y.at).slice(0, max || 6).map(r => r.w);
+}
+/* 낱말마다 찾은 자료를 모아, 낱말이 많이 겹치는 자료부터 놓는다. lists: [{ kw, files, bonus }] */
+function rankFiles(lists) {
+  const m = new Map();
+  for (const L of lists) for (const f of L.files || []) { const r = m.get(f.id) || { f: f, hits: [], score: 0 }; if (L.kw && r.hits.indexOf(L.kw) < 0) { r.hits.push(L.kw); r.score += 1; } r.score += L.bonus || 0; m.set(f.id, r); }
+  return Array.from(m.values()).sort((x, y) => y.score - x.score);
+}
+
+if (typeof module !== "undefined") module.exports = { BUILD, esc, ymd, ym, stamp, dayAdd, safeUrl, unesc, book, bookByName, chapterTitle, passageLabel, shortLabel, prepTitle, parsePrepTitle, parseVerses, parseChapter, prepTemplate, docIdOf, splitLinks, docRoot, paraLine, prepRead, toSegs, memoRequests, lineRequests, bodyRequests, mdHtml, logosPrompt, actEmpty, actNorm, actMerge, actTotal, actSame, actAdd, actStreak, actWeek, actWeeks12, blocksRead, blockRequests, actStreakOf, bookStats, keywordsOf, rankFiles };
