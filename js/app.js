@@ -24,6 +24,9 @@ const kdate = s => { const p = String(s || "").split("-").map(Number); if (p.len
 const nextSunday = () => { const d = new Date(); d.setDate(d.getDate() + ((7 - d.getDay()) % 7)); return ymd(d); };
 const chapKey = (b, ch) => b + ":" + ch;
 const stepOf = no => D.STEPS.find(s => s.no === no);
+/* 읽다가 담을 자리: 예화는 예화 단계, 나머지 자료는 자료 단계. 단계 번호는 D.STEPS 에서 찾는다 */
+const stepFor = kind => (D.STEPS.find(s => s.kinds.indexOf(kind) >= 0) || D.STEPS[0]).no;
+const keepNo = sec => sec === "예화" ? stepFor("예화") : stepFor("교회 설교 요지");
 const stepInfo = no => (S.prep && S.prep.steps[no]) || { lines: [], tail: [], complex: false };
 const btn = (label, act, arg, cls) => '<button type="button" class="b ' + (cls || "") + '" data-act="' + act + '"' + (arg != null ? ' data-arg="' + esc(arg) + '"' : "") + ">" + label + "</button>";
 const outLink = (text, url) => '<a href="' + esc(safeUrl(url)) + '" target="_blank" rel="noopener">' + esc(text) + "</a>";
@@ -262,13 +265,13 @@ function versesHtml(data, pick) {
   });
   return h || '<p class="muted">보여 줄 절이 없습니다. 절 번호를 확인해 주십시오.</p>';
 }
-/* keepStep: 준비의 그 단계에 담기 단추를 둔다. 0이면 단추 없이, 읽다가 담을 자리만 정해 둔다(예화는 7, 나머지는 5) */
+/* keepStep: 준비의 그 단계에 담기 단추를 둔다. 0이면 단추 없이, 읽다가 담을 자리만 정해 둔다(예화는 예화 단계, 나머지는 자료 단계) */
 function linksHtml(data, secs, keepStep) {
   let h = "";
   for (const sec of secs) {
     const arr = data.links[sec] || []; if (!arr.length) continue;
     h += '<h4 class="lh">' + esc(sec) + '</h4><ul class="links">' + arr.map(l => {
-      const step = keepStep || (sec === "예화" ? 7 : 5), keep = { step: step, text: l.text, url: l.url, extra: l.extra }, kept = !!keepStep && stepInfo(keepStep).lines.some(m => m.indexOf(l.url) >= 0);
+      const step = keepStep || keepNo(sec), keep = { step: step, text: l.text, url: l.url, extra: l.extra }, kept = !!keepStep && stepInfo(keepStep).lines.some(m => m.indexOf(l.url) >= 0);
       return "<li>" + docBtn(l.text, l.url, keep) + (l.extra ? '<span class="ex">' + esc(l.extra) + "</span>" : "") + (keepStep ? (kept ? '<span class="kept">담음</span>' : btn("담기", "keep", reg(keep), "inl")) : "") + "</li>";
     }).join("") + "</ul>";
   }
@@ -446,7 +449,7 @@ function writeHtml(s, info) {
 }
 function stepBody(s) {
   const P = S.prep, info = stepInfo(s.no), key = "p." + P.id + "." + s.no, next = D.STEPS[D.STEPS.indexOf(s) + 1];
-  let h = '<p class="guide">' + esc(s.guide) + '</p><div id="chapPart" data-key="' + esc(chapPartKey()) + '">' + chapPartHtml(s) + "</div>";
+  let h = '<p class="guide">' + esc(s.guide) + "</p>" + (s.points && s.points.length ? '<details class="pts"><summary>길잡이</summary><ul>' + s.points.map(x => "<li>" + esc(x) + "</li>").join("") + "</ul>" + (s.src ? '<p class="src">근거: ' + esc(s.src) + "</p>" : "") + "</details>" : "") + '<div id="chapPart" data-key="' + esc(chapPartKey()) + '">' + chapPartHtml(s) + "</div>";
   if (s.kinds.indexOf("logos") >= 0) {
     h += '<div class="logos">' + btn("로고스 연구 맡길 말 복사", "logos", s.no) + '<p class="muted">복사한 말을 Claude 대화에 붙여 넣으면, 로고스 서재에서 찾은 내용을 이 칸에 넣어 달라는 부탁이 됩니다.</p>' +
       (S.copy ? '<textarea class="copy" rows="6" readonly>' + esc(S.copy) + "</textarea>" : "") + "</div>";
@@ -505,7 +508,7 @@ function findView() {
     const arr = F.files.filter(f => groupOf(f) === g); if (!arr.length) continue;
     h += '<section class="sec"><h2>' + g + " " + arr.length + '</h2><ul class="links">' + arr.map(f => {
       if (g === "성경") { const m = String(f.name).match(/^(\d\d)_(.+?) 0*(\d+)(장|편)$/), b = m && bookByName(m[2]); if (b) return "<li>" + '<button type="button" class="lk" data-act="chOpen" data-arg="' + b.i + ":" + (+m[3]) + '">' + esc(b.name + " " + (+m[3]) + m[4]) + "</button></li>"; }
-      const url = docUrl(f.id), can = S.prep && g !== "성경" && g !== "내 기록", keep = can ? { step: g === "예화" ? 7 : 5, text: f.name, url: url, extra: g } : null;
+      const url = docUrl(f.id), can = S.prep && g !== "성경" && g !== "내 기록", keep = can ? { step: keepNo(g), text: f.name, url: url, extra: g } : null;
       return "<li>" + docBtn(f.name, url, keep) + (can ? (stepInfo(keep.step).lines.some(m => m.indexOf(url) >= 0) ? '<span class="kept">담음</span>' : btn("담기", "keep", reg(keep), "inl")) : "") + "</li>";
     }).join("") + "</ul></section>";
   }
