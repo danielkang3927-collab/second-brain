@@ -449,7 +449,7 @@ function writeHtml(s, info) {
 }
 function stepBody(s) {
   const P = S.prep, info = stepInfo(s.no), key = "p." + P.id + "." + s.no, next = D.STEPS[D.STEPS.indexOf(s) + 1];
-  let h = '<p class="guide">' + esc(s.guide) + "</p>" + (s.points && s.points.length ? '<details class="pts"><summary>길잡이</summary><ul>' + s.points.map(x => "<li>" + esc(x) + "</li>").join("") + "</ul>" + (s.src ? '<p class="src">근거: ' + esc(s.src) + "</p>" : "") + "</details>" : "") + '<div id="chapPart" data-key="' + esc(chapPartKey()) + '">' + chapPartHtml(s) + "</div>";
+  let h = '<p class="guide">' + esc(s.guide) + "</p>" + (s.points && s.points.length ? '<details class="pts"><summary>길잡이</summary><ul>' + s.points.map(x => "<li>" + esc(x) + "</li>").join("") + "</ul>" + (s.src ? '<p class="src">근거: ' + esc(s.src) + "</p>" : "") + (s.docs && D.METHOD_DOCS ? '<p class="srcdocs">' + s.docs.map(k => D.METHOD_DOCS[k]).filter(Boolean).map(m => btn(esc(m.title) + " 원문", "read", reg({ id: m.id, title: m.title }), "inl")).join(" ") + "</p>" : "") + "</details>" : "") + '<div id="chapPart" data-key="' + esc(chapPartKey()) + '">' + chapPartHtml(s) + "</div>";
   if (s.kinds.indexOf("logos") >= 0) {
     h += '<div class="logos">' + btn("로고스 연구 맡길 말 복사", "logos", s.no) + '<p class="muted">복사한 말을 Claude 대화에 붙여 넣으면, 로고스 서재에서 찾은 내용을 이 칸에 넣어 달라는 부탁이 됩니다.</p>' +
       (S.copy ? '<textarea class="copy" rows="6" readonly>' + esc(S.copy) + "</textarea>" : "") + "</div>";
@@ -493,8 +493,8 @@ function bookView() {
 }
 
 /* ---------- 화면: 찾기 ---------- */
-const GROUPS = ["성경", "설교 요지", "예화", "내 설교", "원고", "독서", "내 기록"];
-function groupOf(f) { const p = (f.parents || [])[0], F = D.FOLDERS; return p === F.bible || (BKF && Object.keys(BKF).some(k => BKF[k] === p)) ? "성경" : p === F.yoji ? "설교 요지" : p === F.illust ? "예화" : p === F.mine ? "내 설교" : p === F.manu ? "원고" : p === F.read ? "독서" : "내 기록"; }
+const GROUPS = ["성경", "설교 요지", "예화", "내 설교", "원고", "독서", "방법론", "메모", "내 기록"];
+function groupOf(f) { const p = (f.parents || [])[0], F = D.FOLDERS; return p === F.bible || (BKF && Object.keys(BKF).some(k => BKF[k] === p)) ? "성경" : p === F.yoji ? "설교 요지" : p === F.illust ? "예화" : p === F.mine ? "내 설교" : p === F.manu ? "원고" : p === F.read ? "독서" : p === F.method ? "방법론" : p === F.memo ? "메모" : "내 기록"; }
 function findView() {
   const F = S.find;
   let h = '<section class="sec"><div class="findrow"><input id="q" type="search" enterkeyhint="search" autocomplete="off" aria-label="찾을 말" placeholder="낱말이나 문장" data-draft="q" data-enter="find" value="' + esc(draft("q")) + '">' + btn("찾기", "find", null, "pri") + "</div>" +
@@ -602,7 +602,7 @@ const ACT = {
     await docInsert(P.id, 3, [line]); await prepRefresh(); recordAct("prep", P.label + ", 원어"); flash("낱말을 3. 원어 칸의 메모에 담았습니다."); keepY(render);
   },
   read(arg) { const it = R[+arg]; if (it) return readerOpen(it); },
-  readLink(arg) { const c = S.reader && S.reader.stack[S.reader.stack.length - 1], l = c && c.links[+arg]; if (l) return readerOpen({ id: l.id, title: l.title, keep: S.prep ? { step: (c.keep && c.keep.step) || 5, text: l.title, url: l.url, extra: "" } : null }); },
+  readLink(arg) { const c = S.reader && S.reader.stack[S.reader.stack.length - 1], l = c && c.links[+arg]; if (l) return readerOpen({ id: l.id, title: l.title, keep: S.prep ? { step: (c.keep && c.keep.step) || keepNo(""), text: l.title, url: l.url, extra: "" } : null }); },
   readBack() { if (!S.reader) return; S.reader.stack.pop(); if (!S.reader.stack.length) closeReader(); else { render(); window.scrollTo(0, 0); } },
   async readKeep() {
     const c = S.reader && S.reader.stack[S.reader.stack.length - 1], P = S.prep; if (!c || !c.keep || !P) return;
@@ -687,7 +687,7 @@ const ACT = {
     if (S.find && S.find.st === "ing") return;
     S.find = { st: "ing", q: q }; render();
     try {
-      const F = D.FOLDERS, ps = ["bible", "yoji", "illust", "mine", "manu", "read"].map(k => "'" + F[k] + "' in parents"), my = LS.get("myFolder", ""); if (my) ps.push("'" + q1(my) + "' in parents");
+      const F = D.FOLDERS, ps = ["bible", "yoji", "illust", "mine", "manu", "read", "method", "memo"].map(k => "'" + F[k] + "' in parents"), my = LS.get("myFolder", ""); if (my) ps.push("'" + q1(my) + "' in parents");
       const bf = await bookFolders(); Object.keys(bf).forEach(k => ps.push("'" + q1(bf[k]) + "' in parents"));
       S.find = { st: "ok", q: q, files: await gList("fullText contains '" + q1(q) + "' and (" + ps.join(" or ") + ")", { size: 40 }) };
     } catch (e) { S.find = { st: "err", q: q, err: explain(e) }; if (e.code === "login" || e.code === "scope") fail(e); }

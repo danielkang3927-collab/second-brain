@@ -28,7 +28,7 @@ class Fake:
         self.no_markdown = False     # 마크다운으로 문서 만들기를 받지 않는 척
         self.auth_log, self.calls, self.violations = [], [], []
         self.fail_next = None        # ("경로 조각", status, body) 한 번만 실패
-        for key in ("root", "bible", "old", "guide", "packs", "yoji", "illust", "read", "manu", "mine"):
+        for key in [k for k in folders if k in ("root", "bible", "old", "guide", "packs", "yoji", "illust", "read", "manu", "mine", "memo", "method")]:
             self._put(folders[key], key, FOLDER, [folders["root"]] if key != "root" else [], vault=True)
 
     # ---------- 파일 넣기 ----------

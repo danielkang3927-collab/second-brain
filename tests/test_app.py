@@ -313,6 +313,7 @@ def run_main(browser):
     ok("s6 다음 단계 단추", "open" in page.get_attribute("#step7", "class"))
     page.click("#step7 .pts summary")
     ok("s6 길잡이를 펼치면 강의안 요점과 근거", "신학적 이동" in page.inner_text("#step7 .pts") and "근거:" in page.inner_text("#step7 .pts"))
+    ok("s6 길잡이에 강의안 원문 단추", btn(page, "쿠루빌라 설교세미나 메모 원문", "#step7").count() == 1)
 
     # s30 원어: 낱말을 누르면 원형, 문법, 사전, 쓰인 곳
     w1 = LUKE19["v"]["1"]
