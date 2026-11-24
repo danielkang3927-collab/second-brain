@@ -61,6 +61,7 @@ function paintFlash() {
 }
 function fail(e) {
   const c = e && e.code;
+  if (c === "login" && canSilent() && !typing()) { silentGo(); return; }   /* 로그인이 다 됐으면 묻지 않고 화면 없이 새로 받는다 */
   if (c === "login") flash(explain(e), "bad", ["다시 로그인", "login", canSilent() ? "silent" : ""]);
   else if (c === "scope") flash(explain(e), "bad", ["다시 로그인", "login", "consent"]);
   else flash(explain(e), "bad");
@@ -68,6 +69,7 @@ function fail(e) {
 
 /* ---------- 로그인 흐름 ---------- */
 const canSilent = () => !!(clientId() && AUTH.email && Date.now() - LS.get("silentAt", 0) > 120000);
+function keepSignedIn() { if (document.visibilityState !== "visible" || !AUTH.email || !AUTH.exp || typing() || busyN) return; if (AUTH.exp - Date.now() < 480000 && canSilent()) silentGo(); }
 function silentGo() { LS.set("silentAt", Date.now()); LS.set("scroll", { y: window.scrollY || 0, t: Date.now() }); authGo("silent"); }
 /* 화면 없이 로그인을 새로 받고 돌아왔을 때 보던 자리로 */
 function scrollBack() { const s = LS.get("scroll", null); if (!s) return false; LS.del("scroll"); if (Date.now() - s.t > 30000 || !s.y) return false; window.scrollTo(0, s.y); return true; }
@@ -932,5 +934,8 @@ function boot() {
   if (signedIn()) afterSignIn(!!(back && back.ok && !back.silent));
   updCheck(false);
   setInterval(() => updCheck(false), 120000);
+  /* 로그인 유지: 구글이 주는 출입증은 한 시간짜리다. 끝나기 8분 전부터, 글을 적고 있지 않을 때 화면 없이 새로 받는다 */
+  setInterval(keepSignedIn, 45000);
+  document.addEventListener("focusout", () => setTimeout(keepSignedIn, 1500));
 }
 boot();

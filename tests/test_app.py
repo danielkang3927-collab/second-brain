@@ -648,9 +648,11 @@ def run_main(browser):
     fake.tokens.clear()
     n_auth = len(fake.auth_log)
     btn(page, "메모 저장").click()
-    flash(page, "로그인이 만료되었습니다", keep=True)
-    ok("s14 만료되면 적던 글은 칸에 그대로", page.input_value("#memo2") == "만료 시험 메모")
-    btn(page, "다시 로그인").click()
+    # 10판: 만료되면 묻지 않고 화면 없이 새로 받는다
+    for _ in range(80):
+        if len(fake.auth_log) > n_auth:
+            break
+        time.sleep(0.1)
     page.wait_for_selector("#memo2")
     a = fake.auth_log[-1]
     ok("s14 화면 없이 새로 받기 (prompt=none, 같은 계정)", len(fake.auth_log) == n_auth + 1 and a.get("prompt") == "none" and a.get("login_hint") == fake.email, str(a))
