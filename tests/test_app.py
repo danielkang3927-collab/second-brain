@@ -67,6 +67,8 @@ def new_ctx(browser, fake, viewport=PHONE, scheme="light", seed_ls=None):
         if r.request.method == "GET":
             return r.fulfill(status=200, content_type="application/json", body=_j.dumps({"models": [{"name": "models/gemini-9-flash", "supportedGenerationMethods": ["generateContent"]}, {"name": "models/gemini-9-flash-lite", "supportedGenerationMethods": ["generateContent"]}, {"name": "models/gemini-9-flash-image", "supportedGenerationMethods": ["generateContent"]}]}))
         GEM_CALLS.append((r.request.url, _j.loads(r.request.post_data or "{}")))
+        if "gemini-9-flash:" in r.request.url:
+            return r.fulfill(status=429, content_type="application/json", body='{"error":{"message":"Quota exceeded, limit: 0"}}')
         r.fulfill(status=200, content_type="application/json", body=_j.dumps({"candidates": [{"content": {"parts": [{"text": "제미나이 가짜 답"}]}}]}))
     ctx.route("https://generativelanguage.googleapis.com/**", _gem)
     ctx.route("https://books.google.com/**", lambda r: r.fulfill(status=200, content_type="image/gif", body=b"GIF89a\x01\x00\x01\x00\x80\x00\x00\x00\x00\x00\xff\xff\xff!\xf9\x04\x01\x00\x00\x00\x00,\x00\x00\x00\x00\x01\x00\x01\x00\x00\x02\x02D\x01\x00;"))
@@ -694,7 +696,7 @@ def run_main(browser):
     page.fill("#aiKey", "AQ.Ab8TESTKEY-0123456789")
     btn(page, "저장하고 시험하기").click()
     flash(page, "제미나이와 연결되었습니다")
-    ok("v16 제미나이 열쇠면 flash 모델을 골라 부름", len(GEM_CALLS) >= 1 and "/models/gemini-9-flash:generateContent" in GEM_CALLS[-1][0] and "제미나이와 연결" in page.inner_text("#aiSet"), str(GEM_CALLS[-1:])[:200])
+    ok("v18 한도인 모델은 넘기고 되는 모델을 기억함", len(GEM_CALLS) >= 1 and "/models/gemini-9-flash-lite:generateContent" in GEM_CALLS[-1][0] and "/models/gemini-9-flash:generateContent" in GEM_CALLS[0][0] and "gemini-9-flash-lite" in page.inner_text("#aiSet") and "제미나이와 연결" in page.inner_text("#aiSet"), str(GEM_CALLS[-1:])[:200])
     btn(page, "점검하기").click()
     page.wait_for_function("() => document.querySelectorAll('.check li').length >= 6")
     ok("s23 연결 점검 여섯 줄이 모두 됨", page.locator(".check li.no").count() == 0 and page.locator(".check li.ok").count() == 6, page.inner_text(".check"))

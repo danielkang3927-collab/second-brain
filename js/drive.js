@@ -97,25 +97,30 @@ const aiConf = () => { const c = LS.get("ai", null) || {}; return { key: String(
 const aiOn = () => !!aiConf().key;
 const aiIsG = () => { const k = aiConf().key; return !!k && !/^sk-ant-/.test(k); };
 const aiName = () => (aiIsG() ? "제미나이" : "Claude");
-/* 제미나이: 모델 이름이 자주 바뀌므로 쓸 수 있는 모델 목록에서 flash 를 골라 쓴다 */
-async function gemModel(key) {
-  const c = LS.get("gemModel", null); if (c && c.at > Date.now() - 864e5 && c.m) return c.m;
+/* 제미나이: 모델 이름이 자주 바뀌고, 무료로 못 쓰는 모델은 429를 낸다. 쓸 수 있는 목록에서 flash 계열을 차례로 눌러 보고 되는 것을 기억한다 */
+async function gemList(key) {
   const r = await fetchT("https://generativelanguage.googleapis.com/v1beta/models?pageSize=200", { headers: { "x-goog-api-key": key } }, 20000), j = await r.json().catch(() => null);
-  if (!r.ok) throw new GErr("ai", r.status === 401 ? "구글이 이 열쇠를 받아 주지 않았습니다(401). 새 형식 열쇠(AQ.로 시작)에서 구글 쪽 문제로 생기는 일입니다. AI Studio에서 열쇠를 새로 만들어 다시 넣어 보십시오." : r.status === 400 || r.status === 403 ? "제미나이 열쇠가 맞지 않습니다. 설정에서 다시 넣어 주십시오." : "제미나이가 답하지 못했습니다(" + r.status + ").");
-  const ok = ((j && j.models) || []).filter(m => (m.supportedGenerationMethods || []).indexOf("generateContent") >= 0).map(m => String(m.name || "").replace(/^models\//, "")).filter(n => /^gemini-/.test(n) && !/image|tts|audio|live|embedding|vision|robotics|computer/.test(n));
-  const pick = ok.filter(n => /flash/.test(n) && !/lite|preview|exp/.test(n)).sort().pop() || ok.filter(n => /flash/.test(n) && !/lite/.test(n)).sort().pop() || ok.filter(n => /flash/.test(n)).sort().pop() || ok.sort().pop();
-  if (!pick) throw new GErr("ai", "이 열쇠로 쓸 수 있는 제미나이 모델을 찾지 못했습니다.");
-  LS.set("gemModel", { m: pick, at: Date.now() }); return pick;
+  if (!r.ok) throw new GErr("ai", r.status === 401 ? "구글이 이 열쇠를 받아 주지 않았습니다(401). AI Studio에서 열쇠를 새로 만들어 다시 넣어 보십시오." : r.status === 400 || r.status === 403 ? "제미나이 열쇠가 맞지 않습니다. 설정에서 다시 넣어 주십시오." : "제미나이가 답하지 못했습니다(" + r.status + ").");
+  const ok = ((j && j.models) || []).filter(m => (m.supportedGenerationMethods || []).indexOf("generateContent") >= 0).map(m => String(m.name || "").replace(/^models\//, "")).filter(n => /^gemini-/.test(n) && !/image|tts|audio|live|embedding|vision|robotics|computer|pro/.test(n));
+  const rank = n => (/flash/.test(n) ? 0 : 4) + (/lite/.test(n) ? 1 : 0) + (/preview|exp/.test(n) ? 2 : 0);
+  return ok.sort((a, b) => rank(a) - rank(b) || (a < b ? 1 : -1));
 }
 async function gemCall(key, msgs, system, max) {
-  let res, j = null;
+  const body = { contents: msgs.map(m => ({ role: m.role === "assistant" ? "model" : "user", parts: [{ text: m.content }] })), generationConfig: { maxOutputTokens: Math.max(4096, (max || 3000) * 3) } };
+  if (system) body.system_instruction = { parts: [{ text: system }] };
+  const post = async model => { const res = await fetchT("https://generativelanguage.googleapis.com/v1beta/models/" + encodeURIComponent(model) + ":generateContent", { method: "POST", headers: { "content-type": "application/json", "x-goog-api-key": key }, body: JSON.stringify(body) }, 120000); return { res: res, j: await res.json().catch(() => null) }; };
+  let out = null, why = "";
   try {
-    const model = await gemModel(key), body = { contents: msgs.map(m => ({ role: m.role === "assistant" ? "model" : "user", parts: [{ text: m.content }] })), generationConfig: { maxOutputTokens: Math.max(4096, (max || 3000) * 3) } };
-    if (system) body.system_instruction = { parts: [{ text: system }] };
-    res = await fetchT("https://generativelanguage.googleapis.com/v1beta/models/" + encodeURIComponent(model) + ":generateContent", { method: "POST", headers: { "content-type": "application/json", "x-goog-api-key": key }, body: JSON.stringify(body) }, 120000);
-    j = await res.json().catch(() => null);
+    const c = LS.get("gemModel", null), known = c && c.at > Date.now() - 7 * 864e5 && c.m ? c.m : "";
+    if (known) { out = await post(known); if (!out.res.ok && (out.res.status === 429 || out.res.status === 404)) { why = (out.j && out.j.error && out.j.error.message) || ""; out = null; LS.del("gemModel"); } }
+    if (!out) {
+      const list = (await gemList(key)).filter(n => n !== known).slice(0, 6);
+      if (!list.length && !known) throw new GErr("ai", "이 열쇠로 쓸 수 있는 제미나이 모델을 찾지 못했습니다.");
+      for (const m of list) { const t = await post(m); if (t.res.ok) { out = t; LS.set("gemModel", { m: m, at: Date.now() }); break; } why = (t.j && t.j.error && t.j.error.message) || why; if (t.res.status !== 429 && t.res.status !== 404) { out = t; break; } out = t; }
+    }
   } catch (e) { if (e instanceof GErr) throw e; const late = e && e.name === "AbortError"; throw new GErr(late ? "timeout" : "network", late ? "제미나이가 제때 답하지 않았습니다. 다시 눌러 주십시오." : "인터넷 연결을 확인해 주십시오."); }
-  if (!res.ok) { if (res.status === 404) LS.del("gemModel"); throw new GErr("ai", res.status === 401 ? "구글이 이 열쇠를 받아 주지 않았습니다(401). AI Studio에서 열쇠를 새로 만들어 다시 넣어 보십시오." : res.status === 429 ? "제미나이 무료 한도에 걸렸습니다. 잠시 뒤(분당 한도) 또는 내일(하루 한도) 다시 눌러 주십시오." : res.status === 400 || res.status === 403 ? "제미나이 열쇠가 맞지 않거나 막혀 있습니다. 설정에서 다시 넣어 주십시오." : "제미나이가 답하지 못했습니다(" + res.status + "). 다시 눌러 주십시오."); }
+  const res = out.res, j = out.j, msg = String((j && j.error && j.error.message) || why || "").replace(/\s+/g, " ").slice(0, 160);
+  if (!res.ok) throw new GErr("ai", res.status === 401 ? "구글이 이 열쇠를 받아 주지 않았습니다(401). AI Studio에서 열쇠를 새로 만들어 다시 넣어 보십시오." : res.status === 429 ? "제미나이 무료 한도에 걸렸습니다. 쓸 수 있는 모델을 차례로 눌러 보았으나 모두 한도였습니다. 잠시 뒤 다시 눌러 주십시오. (구글의 말: " + msg + ")" : res.status === 400 || res.status === 403 ? "제미나이 열쇠가 맞지 않거나 막혀 있습니다. (구글의 말: " + msg + ")" : "제미나이가 답하지 못했습니다(" + res.status + "). (구글의 말: " + msg + ")");
   const c = ((j && j.candidates) || [])[0], text = ((c && c.content && c.content.parts) || []).filter(x => x.text && !x.thought).map(x => x.text).join("").trim();
   if (!text) throw new GErr("ai", "제미나이가 빈 답을 보냈습니다" + (c && c.finishReason ? " (" + c.finishReason + ")" : "") + ". 다시 눌러 주십시오.");
   return text;
