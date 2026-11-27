@@ -62,7 +62,7 @@ def new_ctx(browser, fake, viewport=PHONE, scheme="light", seed_ls=None):
     ctx.route("https://api.anthropic.com/**", _ai)
     def _gem(r):
         import json as _j
-        if r.request.headers.get("x-goog-api-key") != "AIzaTEST":
+        if r.request.headers.get("x-goog-api-key") != "AQ.Ab8TESTKEY-0123456789":
             return r.fulfill(status=400, content_type="application/json", body='{"error":{"message":"API key not valid"}}')
         if r.request.method == "GET":
             return r.fulfill(status=200, content_type="application/json", body=_j.dumps({"models": [{"name": "models/gemini-9-flash", "supportedGenerationMethods": ["generateContent"]}, {"name": "models/gemini-9-flash-lite", "supportedGenerationMethods": ["generateContent"]}, {"name": "models/gemini-9-flash-image", "supportedGenerationMethods": ["generateContent"]}]}))
@@ -255,7 +255,7 @@ def run_main(browser):
     page.get_by_role("button", name="설정").first.click()
     page.fill("#aiKey", "틀린열쇠")
     btn(page, "저장하고 시험하기").click()
-    flash(page, "로 시작합니다")
+    flash(page, "너무 짧거나")
     page.fill("#aiKey", "sk-ant-test")
     btn(page, "저장하고 시험하기").click()
     flash(page, "Claude와 연결되었습니다")
@@ -691,7 +691,7 @@ def run_main(browser):
     # s23 설정과 연결 점검
     page.click("#sbTop .ver")
     ok("s23 설정에 계정과 원어 자료 출처가 보임", fake.email in main_text(page) and "STEP Bible" in main_text(page) and "CC BY 4.0" in main_text(page))
-    page.fill("#aiKey", "AIzaTEST")
+    page.fill("#aiKey", "AQ.Ab8TESTKEY-0123456789")
     btn(page, "저장하고 시험하기").click()
     flash(page, "제미나이와 연결되었습니다")
     ok("v16 제미나이 열쇠면 flash 모델을 골라 부름", len(GEM_CALLS) >= 1 and "/models/gemini-9-flash:generateContent" in GEM_CALLS[-1][0] and "제미나이와 연결" in page.inner_text("#aiSet"), str(GEM_CALLS[-1:])[:200])
