@@ -109,18 +109,18 @@ async function gemCall(key, msgs, system, max) {
   const body = { contents: msgs.map(m => ({ role: m.role === "assistant" ? "model" : "user", parts: [{ text: m.content }] })), generationConfig: { maxOutputTokens: Math.max(4096, (max || 3000) * 3) } };
   if (system) body.system_instruction = { parts: [{ text: system }] };
   const post = async model => { const res = await fetchT("https://generativelanguage.googleapis.com/v1beta/models/" + encodeURIComponent(model) + ":generateContent", { method: "POST", headers: { "content-type": "application/json", "x-goog-api-key": key }, body: JSON.stringify(body) }, 120000); return { res: res, j: await res.json().catch(() => null) }; };
-  let out = null, why = "";
+  let out = null, why = ""; const skip = st => st === 429 || st === 404 || st === 500 || st === 503;
   try {
     const c = LS.get("gemModel", null), known = c && c.at > Date.now() - 7 * 864e5 && c.m ? c.m : "";
-    if (known) { out = await post(known); if (!out.res.ok && (out.res.status === 429 || out.res.status === 404)) { why = (out.j && out.j.error && out.j.error.message) || ""; out = null; LS.del("gemModel"); } }
+    if (known) { out = await post(known); if (!out.res.ok && skip(out.res.status)) { why = (out.j && out.j.error && out.j.error.message) || ""; out = null; LS.del("gemModel"); } }
     if (!out) {
       const list = (await gemList(key)).filter(n => n !== known).slice(0, 6);
       if (!list.length && !known) throw new GErr("ai", "이 열쇠로 쓸 수 있는 제미나이 모델을 찾지 못했습니다.");
-      for (const m of list) { const t = await post(m); if (t.res.ok) { out = t; LS.set("gemModel", { m: m, at: Date.now() }); break; } why = (t.j && t.j.error && t.j.error.message) || why; if (t.res.status !== 429 && t.res.status !== 404) { out = t; break; } out = t; }
+      for (const m of list) { const t = await post(m); if (t.res.ok) { out = t; LS.set("gemModel", { m: m, at: Date.now() }); break; } why = (t.j && t.j.error && t.j.error.message) || why; if (!skip(t.res.status)) { out = t; break; } out = t; }
     }
   } catch (e) { if (e instanceof GErr) throw e; const late = e && e.name === "AbortError"; throw new GErr(late ? "timeout" : "network", late ? "제미나이가 제때 답하지 않았습니다. 다시 눌러 주십시오." : "인터넷 연결을 확인해 주십시오."); }
   const res = out.res, j = out.j, msg = String((j && j.error && j.error.message) || why || "").replace(/\s+/g, " ").slice(0, 160);
-  if (!res.ok) throw new GErr("ai", res.status === 401 ? "구글이 이 열쇠를 받아 주지 않았습니다(401). AI Studio에서 열쇠를 새로 만들어 다시 넣어 보십시오." : res.status === 429 ? "제미나이 무료 한도에 걸렸습니다. 쓸 수 있는 모델을 차례로 눌러 보았으나 모두 한도였습니다. 잠시 뒤 다시 눌러 주십시오. (구글의 말: " + msg + ")" : res.status === 400 || res.status === 403 ? "제미나이 열쇠가 맞지 않거나 막혀 있습니다. (구글의 말: " + msg + ")" : "제미나이가 답하지 못했습니다(" + res.status + "). (구글의 말: " + msg + ")");
+  if (!res.ok) throw new GErr("ai", res.status === 401 ? "구글이 이 열쇠를 받아 주지 않았습니다(401). AI Studio에서 열쇠를 새로 만들어 다시 넣어 보십시오." : res.status === 429 ? "제미나이 무료 한도에 걸렸습니다. 쓸 수 있는 모델을 차례로 눌러 보았으나 모두 한도였습니다. 잠시 뒤 다시 눌러 주십시오. (구글의 말: " + msg + ")" : res.status === 503 || res.status === 500 ? "지금 제미나이에 사람이 몰려 답이 오지 않습니다. 쓸 수 있는 모델을 차례로 눌러 보았으나 모두 그랬습니다. 열쇠는 맞으니 몇 분 뒤 다시 눌러 주십시오." : res.status === 400 || res.status === 403 ? "제미나이 열쇠가 맞지 않거나 막혀 있습니다. (구글의 말: " + msg + ")" : "제미나이가 답하지 못했습니다(" + res.status + "). (구글의 말: " + msg + ")");
   const c = ((j && j.candidates) || [])[0], text = ((c && c.content && c.content.parts) || []).filter(x => x.text && !x.thought).map(x => x.text).join("").trim();
   if (!text) throw new GErr("ai", "제미나이가 빈 답을 보냈습니다" + (c && c.finishReason ? " (" + c.finishReason + ")" : "") + ". 다시 눌러 주십시오.");
   return text;

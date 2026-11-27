@@ -68,7 +68,7 @@ def new_ctx(browser, fake, viewport=PHONE, scheme="light", seed_ls=None):
             return r.fulfill(status=200, content_type="application/json", body=_j.dumps({"models": [{"name": "models/gemini-9-flash", "supportedGenerationMethods": ["generateContent"]}, {"name": "models/gemini-9-flash-lite", "supportedGenerationMethods": ["generateContent"]}, {"name": "models/gemini-9-flash-image", "supportedGenerationMethods": ["generateContent"]}]}))
         GEM_CALLS.append((r.request.url, _j.loads(r.request.post_data or "{}")))
         if "gemini-9-flash:" in r.request.url:
-            return r.fulfill(status=429, content_type="application/json", body='{"error":{"message":"Quota exceeded, limit: 0"}}')
+            return r.fulfill(status=503, content_type="application/json", body='{"error":{"message":"high demand"}}')
         r.fulfill(status=200, content_type="application/json", body=_j.dumps({"candidates": [{"content": {"parts": [{"text": "제미나이 가짜 답"}]}}]}))
     ctx.route("https://generativelanguage.googleapis.com/**", _gem)
     ctx.route("https://books.google.com/**", lambda r: r.fulfill(status=200, content_type="image/gif", body=b"GIF89a\x01\x00\x01\x00\x80\x00\x00\x00\x00\x00\xff\xff\xff!\xf9\x04\x01\x00\x00\x00\x00,\x00\x00\x00\x00\x01\x00\x01\x00\x00\x02\x02D\x01\x00;"))
