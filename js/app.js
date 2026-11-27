@@ -62,7 +62,7 @@ function prosePrompt() {
 }
 function visitPrompt() {
   const P = S.prep;
-  return "심방 설교 묵상 정리를 도와주세요.\n- 가정 상황: " + (val("vsA") || "(적지 않음)") + "\n- 설교 본문: " + P.label + "\n- 응답/연결 본문: " + (val("vsB") || "(없음)") + "\n- 전하려는 메시지: " + (val("vsC") || "(적지 않음)") + "\n- 동행자: " + (val("vsD") || "(없음)") + "\n\n요청:\n1. 묵상 포인트 5가지(원어 주해 포함, 기초 설명 생략)\n2. 배경 지식(저자·시대·본문 간 어휘 연결)\n3. 적용 제안(은혜를 앞세우고 도덕주의 금지)\n4. 한 문장 요지\n본문에 있는 내용과 해석·추론은 구분하고, 성경 구절은 \"몇 장 몇 절\"로 적어 주세요. 간결하고 분명하게.";
+  return "심방 설교 묵상 정리를 도와주세요.\n- 가정 상황: " + (val("vsA") || "(적지 않음)") + "\n- 설교 본문: " + P.label + "\n- 응답/연결 본문: " + (val("vsB") || "(없음)") + "\n- 전하려는 메시지: " + (val("vsC") || "(적지 않음)") + "\n\n요청:\n1. 묵상 포인트 5가지(원어 주해 포함, 기초 설명 생략)\n2. 배경 지식(저자·시대·본문 간 어휘 연결)\n3. 적용 제안(은혜를 앞세우고 도덕주의 금지)\n4. 한 문장 요지\n5. 위 분석을 바탕으로 한 5분 설교 원고 샘플(말하는 문장으로)\n본문에 있는 내용과 해석·추론은 구분하고, 성경 구절은 \"몇 장 몇 절\"로 적어 주세요. 간결하고 분명하게.";
 }
 function talkPrompt() {
   const T = S.talk, m = (LS.get("shelf", {}) || {})[T.t] || {};
@@ -521,7 +521,7 @@ function prepOpenView() {
     h += '<li class="step' + (open ? " open" : "") + (n ? " has" : "") + '" id="step' + s.no + '"><button type="button" class="sh" data-act="step" data-arg="' + s.no + '" aria-expanded="' + open + '"><span class="node">' + s.no + '</span><span class="st">' + esc(s.title) + "</span>" +
       (n ? '<span class="cnt">' + (s.write ? "쓴 글 있음" : "메모 " + n) + "</span>" : "") + "</button>" + (open ? '<div class="sb">' + stepBody(s) + "</div>" : "") + "</li>";
   }
-  return h + '</ol>' + (Z[0] === "S" ? '<section class="sec" id="visitAsk"><h2>심방 묵상 부탁 말</h2><p class="muted">가정 상황과 전하려는 말을 적으면, 묵상 포인트 다섯 가지와 배경, 적용 제안을 Claude에게 묻는 부탁 말을 만듭니다. 가정 상황은 이 기기에만 잠시 남고 드라이브에 저장하지 않습니다.</p><label class="fld">가정 상황<textarea id="vsA" rows="2" data-draft="vs.a.' + esc(P.id) + '">' + esc(draft("vs.a." + P.id)) + '</textarea></label><label class="fld">응답·연결 본문<input id="vsB" data-draft="vs.b.' + esc(P.id) + '" value="' + esc(draft("vs.b." + P.id)) + '"></label><label class="fld">전하려는 메시지<textarea id="vsC" rows="2" data-draft="vs.c.' + esc(P.id) + '">' + esc(draft("vs.c." + P.id)) + '</textarea></label><label class="fld">동행자<input id="vsD" data-draft="vs.d.' + esc(P.id) + '" value="' + esc(draft("vs.d." + P.id)) + '"></label>' + btn("부탁 말 복사", "visitCopy", null, "pri") + '<p class="muted">가정 상황은 제미나이로 보내지 않습니다. 복사해 Claude 채팅에 붙여 넣으십시오.</p>' + (S.copy ? '<textarea class="copy" rows="6" readonly>' + esc(S.copy) + "</textarea>" : "") + "</section>" : "") + '<p class="foot">' + (aiOn() ? btn("메모를 제미나이로 풀어 쓰기", "proseRun", null, "pri") : '<span class="muted">설정의 AI 연결에 열쇠를 넣으면 메모를 글로 풀어 씁니다.</span>') + "</p>" + aiBox("prose") + '<p class="foot">' + btn("준비한 것 한눈에 읽기", "read", reg({ id: P.id, title: P.label + " 준비" })) + "</p>";
+  return h + '</ol>' + (Z[0] === "S" ? '<section class="sec" id="visitAsk"><h2>심방 묵상 부탁 말</h2><p class="muted">가정 상황과 전하려는 말을 적으면, 묵상 포인트 다섯 가지와 배경, 적용 제안을 Claude에게 묻는 부탁 말을 만듭니다. 가정 상황은 이 기기에만 잠시 남고 드라이브에 저장하지 않습니다.</p><label class="fld">가정 상황<textarea id="vsA" rows="2" data-draft="vs.a.' + esc(P.id) + '">' + esc(draft("vs.a." + P.id)) + '</textarea></label><label class="fld">응답·연결 본문<input id="vsB" data-draft="vs.b.' + esc(P.id) + '" value="' + esc(draft("vs.b." + P.id)) + '"></label><label class="fld">전하려는 메시지<textarea id="vsC" rows="2" data-draft="vs.c.' + esc(P.id) + '">' + esc(draft("vs.c." + P.id)) + '</textarea></label>' + btn("부탁 말 복사", "visitCopy", null, "pri") + '<p class="muted">가정 상황은 제미나이로 보내지 않습니다. 복사해 Claude 채팅에 붙여 넣으십시오.</p>' + (S.copy ? '<textarea class="copy" rows="6" readonly>' + esc(S.copy) + "</textarea>" : "") + "</section>" : "") + '<p class="foot">' + (aiOn() ? btn("메모를 제미나이로 풀어 쓰기", "proseRun", null, "pri") : '<span class="muted">설정의 AI 연결에 열쇠를 넣으면 메모를 글로 풀어 씁니다.</span>') + "</p>" + aiBox("prose") + '<p class="foot">' + btn("준비한 것 한눈에 읽기", "read", reg({ id: P.id, title: P.label + " 준비" })) + "</p>";
 }
 function chapPartHtml(s) {
   const P = S.prep, bi = P.info.bookIndex, ch = P.info.ch, C = S.chap[chapKey(bi, ch)], secs = s.kinds.filter(k => k !== "text" && k !== "logos" && k !== "orig" && k !== "bri");
@@ -865,7 +865,7 @@ const ACT = {
   },
   async visitCopy() {
     const P = S.prep; if (!P) return;
-    const text = "심방 설교 묵상 정리를 도와주세요.\n- 가정 상황: " + (val("vsA") || "(적지 않음)") + "\n- 설교 본문: " + P.label + "\n- 응답/연결 본문: " + (val("vsB") || "(없음)") + "\n- 전하려는 메시지: " + (val("vsC") || "(적지 않음)") + "\n- 동행자: " + (val("vsD") || "(없음)") + "\n\n요청:\n1. 묵상 포인트 5가지(원어 주해 포함, 기초 설명 생략)\n2. 배경 지식(저자·시대·본문 간 어휘 연결)\n3. 적용 제안(은혜를 앞세우고 도덕주의 금지)\n4. 한 문장 요지\n본문에 있는 내용과 해석·추론은 구분하고, 성경 구절은 \"몇 장 몇 절\"로 적어 주세요. 간결하고 분명하게.";
+    const text = "심방 설교 묵상 정리를 도와주세요.\n- 가정 상황: " + (val("vsA") || "(적지 않음)") + "\n- 설교 본문: " + P.label + "\n- 응답/연결 본문: " + (val("vsB") || "(없음)") + "\n- 전하려는 메시지: " + (val("vsC") || "(적지 않음)") + "\n\n요청:\n1. 묵상 포인트 5가지(원어 주해 포함, 기초 설명 생략)\n2. 배경 지식(저자·시대·본문 간 어휘 연결)\n3. 적용 제안(은혜를 앞세우고 도덕주의 금지)\n4. 한 문장 요지\n5. 위 분석을 바탕으로 한 5분 설교 원고 샘플(말하는 문장으로)\n본문에 있는 내용과 해석·추론은 구분하고, 성경 구절은 \"몇 장 몇 절\"로 적어 주세요. 간결하고 분명하게.";
     try { await navigator.clipboard.writeText(text); flash("부탁 말을 복사했습니다. Claude 채팅에 붙여 넣으십시오."); } catch (e) { S.copy = text; flash("복사하지 못했습니다. 아래 글을 길게 눌러 복사하십시오.", "bad"); render(); }
   },
   async aiSave() {
