@@ -52,14 +52,6 @@ def new_ctx(browser, fake, viewport=PHONE, scheme="light", seed_ls=None):
     ctx.route("https://accounts.google.com/**", fake.auth)
     ctx.route("https://www.googleapis.com/**", fake.api)
     ctx.route("https://docs.googleapis.com/**", fake.docs)
-    def _ai(r):
-        import json as _j
-        body = _j.loads(r.request.post_data or "{}")
-        AI_CALLS.append((r.request.headers.get("x-api-key", ""), body))
-        if r.request.headers.get("x-api-key") != "sk-ant-test":
-            return r.fulfill(status=401, content_type="application/json", body='{"error":{"message":"invalid x-api-key"}}')
-        r.fulfill(status=200, content_type="application/json", headers={"access-control-allow-origin": "*"}, body=_j.dumps({"content": [{"type": "text", "text": "가짜 답 첫 줄\n둘째 줄"}]}))
-    ctx.route("https://api.anthropic.com/**", _ai)
     def _gem(r):
         import json as _j
         if r.request.headers.get("x-goog-api-key") != "AQ.Ab8TESTKEY-0123456789":
@@ -84,7 +76,6 @@ def new_ctx(browser, fake, viewport=PHONE, scheme="light", seed_ls=None):
     return ctx, page
 
 
-AI_CALLS = []
 GEM_CALLS = []
 
 def btn(page, name, scope="body"):
@@ -252,25 +243,23 @@ def run_main(browser):
     ok("v11 작은 설교는 단계가 줄어듦", page.locator(".spine .step").count() < 11, str(page.locator(".spine .step").count()))
     ok("v12 작은 설교는 일곱 단계, 심방 부탁 말 칸이 보임", page.locator(".spine .step").count() == 7 and page.locator("#visitAsk").count() == 1 and page.locator("#vsA").count() == 1, str(page.locator(".spine .step").count()))
     page.select_option("#pzS", "L")
-    ok("v13 메모를 글로 풀어 달라는 단추가 있음", btn(page, "메모를 글로 풀어 달라고 하기").count() == 1)
-    ok("v14 열쇠가 없으면 Claude 단추가 없음", btn(page, "메모를 Claude로 풀어 쓰기").count() == 0)
+    ok("v20 열쇠가 없으면 풀어 쓰기 단추가 없음", btn(page, "메모를 제미나이로 풀어 쓰기").count() == 0)
     page.get_by_role("button", name="설정").first.click()
     page.fill("#aiKey", "틀린열쇠")
     btn(page, "저장하고 시험하기").click()
     flash(page, "너무 짧거나")
-    page.fill("#aiKey", "sk-ant-test")
+    page.fill("#aiKey", "sk-ant-test-0000")
     btn(page, "저장하고 시험하기").click()
-    flash(page, "Claude와 연결되었습니다")
-    ok("v14 설정에 끝자리만 보임", "끝자리 test" in page.inner_text("#aiSet") and "sk-ant-test" not in page.inner_text("#aiSet"))
+    flash(page, "Google AI Studio 열쇠를 넣습니다")
+    page.fill("#aiKey", "AQ.Ab8TESTKEY-0123456789")
+    btn(page, "저장하고 시험하기").click()
+    flash(page, "제미나이와 연결되었습니다")
+    ok("v20 설정에 끝자리만 보이고 Claude 연결은 없음", "끝자리 6789" in page.inner_text("#aiSet") and "AQ.Ab8TESTKEY-0123456789" not in page.inner_text("#aiSet") and "sk-ant" not in main_text(page) and page.locator("#aiModel").count() == 0)
+    ok("v20 버전 기록은 최근 것만 펼쳐짐", page.locator("details.pts summary", has_text="지난 버전").count() == 1 and not page.locator("details.pts", has_text="지난 버전").first.evaluate("e => e.open"))
     nav(page, "준비")
+    ok("v20 풀어 쓰기 단추가 생기고 복사 단추와 Claude 창은 없음", btn(page, "메모를 제미나이로 풀어 쓰기").count() == 1 and btn(page, "메모를 글로 풀어 달라고 하기").count() == 0 and "Claude 창" not in main_text(page))
     page.select_option("#pzS", "S")
-    page.fill("#vsA", "시험 가정")
-    btn(page, "여기서 Claude에게 묻기").click()
-    page.wait_for_selector("#aiOut")
-    ok("v14 Claude가 쓴 글이 상자에 나옴", "가짜 답 첫 줄" in page.input_value("#aiOut") and "시험 가정" in AI_CALLS[-1][1]["messages"][0]["content"] and "지어내지 않는다" in AI_CALLS[-1][1]["system"])
-    btn(page, "준비 메모로 넣기").click()
-    flash(page, "단계에 메모로 넣었습니다")
-    ok("v14 넣은 글이 준비 문서에 있음", "Claude가 풀어 씀" in main_text(page) or page.locator(".spine .step.has").count() >= 1)
+    ok("v20 심방 칸은 복사만 있고 제미나이로 보내지 않음", btn(page, "부탁 말 복사").count() >= 1 and btn(page, "여기서 Claude에게 묻기").count() == 0 and "제미나이로 보내지 않습니다" in page.inner_text("#visitAsk"))
     page.select_option("#pzS", "L")
     ok("v12 큰 설교에는 심방 부탁 말 칸이 없음", page.locator("#visitAsk").count() == 0)
     ok("v11 큰 설교로 되돌리면 다시 열한 단계", page.locator(".spine .step").count() == 11)
@@ -553,13 +542,13 @@ def run_main(browser):
     ok("v13 다 읽을 날을 정하면 오늘 몫이 나옴", "오늘 몫 15쪽" in page.inner_text(".shelf"), page.inner_text(".shelf")[:200])
     btn(page, "토론하기").click()
     page.wait_for_selector("#talkSec")
-    ok("v13 토론하기 칸이 열림", "부탁 말" in page.inner_text("#talkSec"))
+    ok("v13 토론하기 칸이 열림", "묻고 답합니다" in page.inner_text("#talkSec"))
     btn(page, "여기서 토론 시작").click()
     page.wait_for_selector("#talkSec .say.ai")
     page.fill("#talkIn", "내 답입니다")
     btn(page, "보내기").click()
     page.wait_for_selector("#talkSec .say.me")
-    ok("v14 앱 안에서 토론이 오감", page.locator("#talkSec .say.ai").count() >= 1 and "시험용 책" in AI_CALLS[-1][1]["messages"][0]["content"] and AI_CALLS[-1][1]["messages"][-1]["content"] == "내 답입니다", str(len(AI_CALLS)))
+    ok("v14 앱 안에서 토론이 오감", page.locator("#talkSec .say.ai").count() >= 1 and "시험용 책" in GEM_CALLS[-1][1]["contents"][0]["parts"][0]["text"] and GEM_CALLS[-1][1]["contents"][-1]["parts"][0]["text"] == "내 답입니다" and "지어내지 않는다" in GEM_CALLS[-1][1]["system_instruction"]["parts"][0]["text"], str(len(GEM_CALLS)))
     btn(page, "닫기").click()
     ok("v13 읽는 법 길잡이가 있음", "읽는 법 길잡이" in main_text(page))
     btn(page, "한 줄 남기기").click()
@@ -693,10 +682,7 @@ def run_main(browser):
     # s23 설정과 연결 점검
     page.click("#sbTop .ver")
     ok("s23 설정에 계정과 원어 자료 출처가 보임", fake.email in main_text(page) and "STEP Bible" in main_text(page) and "CC BY 4.0" in main_text(page))
-    page.fill("#aiKey", "AQ.Ab8TESTKEY-0123456789")
-    btn(page, "저장하고 시험하기").click()
-    flash(page, "제미나이와 연결되었습니다")
-    ok("v18 한도인 모델은 넘기고 되는 모델을 기억함", len(GEM_CALLS) >= 1 and "/models/gemini-9-flash-lite:generateContent" in GEM_CALLS[-1][0] and "/models/gemini-9-flash:generateContent" in GEM_CALLS[0][0] and "gemini-9-flash-lite" in page.inner_text("#aiSet") and "제미나이와 연결" in page.inner_text("#aiSet"), str(GEM_CALLS[-1:])[:200])
+    ok("v18 한도·붐빔인 모델은 넘기고 되는 모델을 기억함", any("/models/gemini-9-flash:generateContent" in c[0] for c in GEM_CALLS) and "/models/gemini-9-flash-lite:generateContent" in GEM_CALLS[-1][0] and "gemini-9-flash-lite" in page.inner_text("#aiSet"))
     btn(page, "점검하기").click()
     page.wait_for_function("() => document.querySelectorAll('.check li').length >= 6")
     ok("s23 연결 점검 여섯 줄이 모두 됨", page.locator(".check li.no").count() == 0 and page.locator(".check li.ok").count() == 6, page.inner_text(".check"))

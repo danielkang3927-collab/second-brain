@@ -38,7 +38,7 @@ const outLink = (text, url) => '<a href="' + esc(safeUrl(url)) + '" target="_bla
 const docBtn = (text, url, keep) => { const id = docIdOf(url); return id ? '<button type="button" class="lk" data-act="read" data-arg="' + reg({ id: id, title: text, keep: keep || null }) + '">' + esc(text) + "</button>" : outLink(text, url); };
 const lineHtml = m => splitLinks(m, true).map(p => (p.url ? docBtn(p.t, p.url) : esc(p.t))).join("");
 
-/* ---------- Claude 연결 ---------- */
+/* ---------- AI 연결(제미나이) ---------- */
 const AI_RULE = "너는 강동윤 목사의 설교 준비와 독서를 돕는다. 받은 글 안에 있는 내용만 근거로 쓴다. 받은 글에 없는 사실, 예화, 인용, 통계, 성경 장절을 지어내지 않는다. 확실하지 않으면 [확인 필요]라고 적는다. 은혜(하나님이 먼저 하시는 일)를 앞에 두고 적용은 그 열매로 쓴다. 한국어로, 꾸밈 기호(별표, 샵) 없이 줄글로 쓴다.";
 function aiBox(k) {
   const A = S.ai; if (!A || A.k !== k) return "";
@@ -521,7 +521,7 @@ function prepOpenView() {
     h += '<li class="step' + (open ? " open" : "") + (n ? " has" : "") + '" id="step' + s.no + '"><button type="button" class="sh" data-act="step" data-arg="' + s.no + '" aria-expanded="' + open + '"><span class="node">' + s.no + '</span><span class="st">' + esc(s.title) + "</span>" +
       (n ? '<span class="cnt">' + (s.write ? "쓴 글 있음" : "메모 " + n) + "</span>" : "") + "</button>" + (open ? '<div class="sb">' + stepBody(s) + "</div>" : "") + "</li>";
   }
-  return h + '</ol>' + (Z[0] === "S" ? '<section class="sec" id="visitAsk"><h2>심방 묵상 부탁 말</h2><p class="muted">가정 상황과 전하려는 말을 적으면, 묵상 포인트 다섯 가지와 배경, 적용 제안을 Claude에게 묻는 부탁 말을 만듭니다. 가정 상황은 이 기기에만 잠시 남고 드라이브에 저장하지 않습니다.</p><label class="fld">가정 상황<textarea id="vsA" rows="2" data-draft="vs.a.' + esc(P.id) + '">' + esc(draft("vs.a." + P.id)) + '</textarea></label><label class="fld">응답·연결 본문<input id="vsB" data-draft="vs.b.' + esc(P.id) + '" value="' + esc(draft("vs.b." + P.id)) + '"></label><label class="fld">전하려는 메시지<textarea id="vsC" rows="2" data-draft="vs.c.' + esc(P.id) + '">' + esc(draft("vs.c." + P.id)) + '</textarea></label><label class="fld">동행자<input id="vsD" data-draft="vs.d.' + esc(P.id) + '" value="' + esc(draft("vs.d." + P.id)) + '"></label>' + (aiOn() && !aiIsG() ? btn("여기서 Claude에게 묻기", "visitRun", null, "pri") : "") + btn("부탁 말 복사", "visitCopy", null, aiOn() && !aiIsG() ? "" : "pri") + (aiIsG() ? '<p class="muted">심방 가정 상황은 무료 제미나이로 보내지 않습니다(보낸 글이 구글의 제품 개선에 쓰입니다). 부탁 말을 복사해 Claude에 붙이거나 Claude 창을 쓰십시오.</p>' : "") + aiBox("visit") + (S.copy ? '<textarea class="copy" rows="6" readonly>' + esc(S.copy) + "</textarea>" : "") + "</section>" : "") + '<p class="foot">' + (aiOn() ? btn("메모를 " + aiName() + "로 풀어 쓰기", "proseRun", null, "pri") : "") + btn("메모를 글로 풀어 달라고 하기", "proseCopy") + "</p>" + '<p class="muted cw">' + outLink("Claude 창 열기", "https://claude.ai/artifact/Kk6NuXoD4GtKBEbkxSr7be") + " 열쇠 없이 Claude 앱 사용량 안에서 풀어 쓰고, 준비 문서에 바로 넣습니다.</p>" + aiBox("prose") + (S.copy && Z[0] !== "S" ? '<textarea class="copy" rows="6" readonly>' + esc(S.copy) + "</textarea>" : "") + '<p class="foot">' + btn("준비한 것 한눈에 읽기", "read", reg({ id: P.id, title: P.label + " 준비" })) + "</p>";
+  return h + '</ol>' + (Z[0] === "S" ? '<section class="sec" id="visitAsk"><h2>심방 묵상 부탁 말</h2><p class="muted">가정 상황과 전하려는 말을 적으면, 묵상 포인트 다섯 가지와 배경, 적용 제안을 Claude에게 묻는 부탁 말을 만듭니다. 가정 상황은 이 기기에만 잠시 남고 드라이브에 저장하지 않습니다.</p><label class="fld">가정 상황<textarea id="vsA" rows="2" data-draft="vs.a.' + esc(P.id) + '">' + esc(draft("vs.a." + P.id)) + '</textarea></label><label class="fld">응답·연결 본문<input id="vsB" data-draft="vs.b.' + esc(P.id) + '" value="' + esc(draft("vs.b." + P.id)) + '"></label><label class="fld">전하려는 메시지<textarea id="vsC" rows="2" data-draft="vs.c.' + esc(P.id) + '">' + esc(draft("vs.c." + P.id)) + '</textarea></label><label class="fld">동행자<input id="vsD" data-draft="vs.d.' + esc(P.id) + '" value="' + esc(draft("vs.d." + P.id)) + '"></label>' + btn("부탁 말 복사", "visitCopy", null, "pri") + '<p class="muted">가정 상황은 제미나이로 보내지 않습니다. 복사해 Claude 채팅에 붙여 넣으십시오.</p>' + (S.copy ? '<textarea class="copy" rows="6" readonly>' + esc(S.copy) + "</textarea>" : "") + "</section>" : "") + '<p class="foot">' + (aiOn() ? btn("메모를 제미나이로 풀어 쓰기", "proseRun", null, "pri") : '<span class="muted">설정의 AI 연결에 열쇠를 넣으면 메모를 글로 풀어 씁니다.</span>') + "</p>" + aiBox("prose") + '<p class="foot">' + btn("준비한 것 한눈에 읽기", "read", reg({ id: P.id, title: P.label + " 준비" })) + "</p>";
 }
 function chapPartHtml(s) {
   const P = S.prep, bi = P.info.bookIndex, ch = P.info.ch, C = S.chap[chapKey(bi, ch)], secs = s.kinds.filter(k => k !== "text" && k !== "logos" && k !== "orig" && k !== "bri");
@@ -654,7 +654,7 @@ function bookView() {
       '<p class="acts">' + btn("한 줄 남기기", "bookNote", reg(b.t), "inl") + btn("토론하기", "bookTalk", reg(b.t), "inl") + btn("다 읽었습니다", "bookDone", reg(b.t), "inl") + btn("목록에서 빼기", "bookOff", reg(b.t), "inl") + '</p><p class="legend"><label>다 읽을 날 <input type="date" id="bkDue' + i + '" value="' + esc(m.due || "") + '" data-chg="dueSet" data-book="' + esc(b.t) + '"></label></p></li>';
   }).join("") + "</ul>" : '<p class="muted">읽는 책을 아래에 적어 두면 여기에 놓입니다. 날마다 「읽었습니다」만 눌러도 기록이 이어집니다.</p>') +
     '<details class="pts"' + (list.length ? "" : " open") + '><summary>새 책 시작하기</summary><label class="fld">책 제목<input id="bkT" type="text" autocomplete="off" maxlength="60" data-draft="bk.t" value="' + esc(draft("bk.t")) + '"></label><p class="acts">' + btn("책 정보 찾기", "bibFind", null, "inl") + '</p><div id="bibPart">' + bibHtml() + '</div><label class="fld">전체 쪽수 (비워도 됩니다)<input id="bkTot" type="text" inputmode="numeric" autocomplete="off" value="' + esc(S.bib && S.bib.pick && S.bib.pick.pages ? S.bib.pick.pages : "") + '"></label><label class="fld">다 읽을 날 (비워도 됩니다)<input id="bkDueN" type="date"></label><label class="fld">분야<select id="bkCat">' + BOOK_CATS.map(c => "<option>" + c + "</option>").join("") + "</select></label>" + btn("읽기 시작", "bookNew", null, "pri wide") + "</details></section>";
-  if (S.talk) h += '<section class="sec" id="talkSec"><h2>토론하기</h2><p class="when">' + esc(S.talk.t) + '</p><p class="muted">이 책을 두고 Claude와 묻고 답하는 부탁 말입니다. 이번 달에 남긴 기록 ' + S.talk.n + '건을 함께 담았습니다. 복사해 Claude 채팅에 붙여 넣으십시오. 토론에서 얻은 것은 「한 줄 남기기」의 「내 말로」에 적어 두면 남습니다.</p>' + '<div id="talkPart">' + talkHtml() + "</div>" + '<p class="muted cw">' + outLink("Claude 창 열기", "https://claude.ai/artifact/Kk6NuXoD4GtKBEbkxSr7be") + " 열쇠 없이 Claude 앱 사용량 안에서 풀어 쓰고, 준비 문서에 바로 넣습니다.</p>" + '<p class="acts">' + btn("부탁 말 복사", "talkCopy", null, "inl") + btn("닫기", "talkClose", null, "inl") + "</p>" + (S.copy ? '<textarea class="copy" rows="6" readonly>' + esc(S.copy) + "</textarea>" : "") + "</section>";
+  if (S.talk) h += '<section class="sec" id="talkSec"><h2>토론하기</h2><p class="when">' + esc(S.talk.t) + '</p><p class="muted">이 책을 두고 묻고 답합니다. 이번 달에 남긴 기록 ' + S.talk.n + '건을 함께 보냅니다.</p>' + '<div id="talkPart">' + talkHtml() + "</div>" + '<p class="acts">' + btn("닫기", "talkClose", null, "inl") + "</p>" + "</section>";
   if (S.note) h += '<section class="sec" id="noteSec"><h2>한 줄 남기기</h2><p class="when">' + esc(S.note) + '</p><p class="muted">읽고, 묻고, 내 말로 적습니다. 밑줄만 긋는 것보다 「왜 그런가」를 묻고 책을 덮은 채 내 말로 적을 때 생각이 남습니다. 칸은 적고 싶은 것만 적으면 됩니다.</p><div class="row"><label class="fld">쪽<input id="bkP" type="text" inputmode="numeric" autocomplete="off" data-draft="bk.p" value="' + esc(draft("bk.p")) + '"></label>' +
     '<label class="fld">관련 본문<input id="bkR" type="text" autocomplete="off" placeholder="예: 눅 19:1-10" data-draft="bk.r" value="' + esc(draft("bk.r")) + '"></label></div>' +
     '<label class="fld">사진으로 담기 (책 쪽을 찍으면 글자를 읽어 아래 칸에 넣습니다)<input id="bkPh" type="file" accept="image/*" data-chg="photoPick"></label>' + (S.ocr ? '<p class="muted" id="ocrSt">' + esc(S.ocr) + "</p>" : "") + '<label class="fld">남는 문장 (짧게 옮겨 적기)<textarea id="bkX" rows="3" data-draft="bk.x">' + esc(draft("bk.x")) + '</textarea></label>' +
@@ -719,10 +719,11 @@ function setView() {
   h += '<p class="muted">자료실은 읽기만 합니다. 앱이 쓰는 글은 「' + esc(D.MY_FOLDER) + "」 폴더에만 만들고, 파일을 지우는 기능은 없습니다. 로그아웃해도 이 기기의 기록은 그대로 둡니다.</p></section>";
   if (!D.OAUTH.clientId) h += '<section class="sec"><h2>연결 값</h2>' + cidHtml() + "</section>";
   const ac = aiConf();
-  h += '<section class="sec" id="aiSet"><h2>AI 연결</h2><p class="muted">열쇠를 넣으면 메모 풀어 쓰기와 독서 토론을 앱 안에서 바로 합니다. 열쇠는 이 기기에만 남고 드라이브나 저장소에 올라가지 않습니다.</p><ul class="links"><li>제미나이 (무료): Google AI Studio에서 받은 열쇠(AQ.나 AIza로 시작). 요금이 없고 하루 한도가 있습니다. 보낸 글은 구글의 제품 개선에 쓰입니다.</li><li>Claude (유료): Claude 콘솔의 API 열쇠(sk-ant-로 시작). 쓴 만큼 요금이 나갑니다.</li></ul><p class="rd">' + (ac.key ? aiName() + "와 연결되어 있습니다 (열쇠 끝자리 " + esc(ac.key.slice(-4)) + (aiIsG() && (LS.get("gemModel", null) || {}).m ? ", 모델 " + esc(LS.get("gemModel", null).m) : "") + ")." : "아직 연결하지 않았습니다.") + '</p><label class="fld">열쇠<input id="aiKey" type="password" autocomplete="off" placeholder="' + (ac.key ? "바꿀 때만 적습니다" : "여기에 붙여 넣기") + '"></label>' + (ac.key && !aiIsG() ? '<label class="fld">모델<select id="aiModel">' + [["claude-sonnet-5-5", "Sonnet 5.5 (보통, 권함)"], ["claude-opus-5-5", "Opus 5.5 (더 깊게, 더 비쌈)"], ["claude-haiku-5-5", "Haiku 5.5 (빠르고 쌈)"]].map(m => '<option value="' + m[0] + '"' + (m[0] === ac.model ? " selected" : "") + ">" + m[1] + "</option>").join("") + "</select></label>" : "") + '<div class="row two">' + btn("저장하고 시험하기", "aiSave", null, "pri") + (ac.key ? btn("열쇠 지우기", "aiForget") : "") + "</div></section>";
+  h += '<section class="sec" id="aiSet"><h2>AI 연결</h2><p class="muted">Google AI Studio에서 받은 무료 열쇠를 넣으면 메모 풀어 쓰기와 독서 토론을 앱 안에서 합니다. 열쇠는 이 기기에만 남습니다. 보낸 글은 구글의 제품 개선에 쓰입니다.</p><p class="rd">' + (ac.key ? "제미나이와 연결되어 있습니다 (열쇠 끝자리 " + esc(ac.key.slice(-4)) + ((LS.get("gemModel", null) || {}).m ? ", 모델 " + esc(LS.get("gemModel", null).m) : "") + ")." : "아직 연결하지 않았습니다.") + '</p><label class="fld">열쇠<input id="aiKey" type="password" autocomplete="off" placeholder="' + (ac.key ? "바꿀 때만 적습니다" : "여기에 붙여 넣기") + '"></label><div class="row two">' + btn("저장하고 시험하기", "aiSave", null, "pri") + (ac.key ? btn("열쇠 지우기", "aiForget") : "") + "</div></section>";
   h += '<section class="sec"><h2>연결 점검</h2><p class="muted">어디에서 막히는지 한 줄씩 보여 줍니다.</p>' + btn("점검하기", "check") +
     (S.check ? '<ul class="check">' + S.check.map(c => '<li class="' + (c.ok === true ? "ok" : c.ok === false ? "no" : "") + '"><b>' + (c.ok === true ? "됨" : c.ok === false ? "안 됨" : "건너뜀") + "</b>" + esc(c.t) + "</li>").join("") + "</ul>" : "") + "</section>";
-  h += '<section class="sec"><h2>버전 v' + BUILD + "</h2>" + D.CHANGELOG.map(c => '<p class="chg"><b>v' + c.v + "</b> " + esc(c.d) + "</p><ul>" + c.t.map(x => "<li>" + esc(x) + "</li>").join("") + "</ul>").join("") + btn("새 버전 확인", "updCheck") + "</section>";
+  const chg = c => '<p class="chg"><b>v' + c.v + "</b> " + esc(c.d) + "</p><ul>" + c.t.map(x => "<li>" + esc(x) + "</li>").join("") + "</ul>";
+  h += '<section class="sec"><h2>버전 v' + BUILD + "</h2>" + chg(D.CHANGELOG[0]) + '<details class="pts"><summary>지난 버전 ' + (D.CHANGELOG.length - 1) + "개</summary>" + D.CHANGELOG.slice(1).map(chg).join("") + "</details>" + btn("새 버전 확인", "updCheck") + "</section>";
   h += '<section class="sec"><h2>원어 자료의 출처</h2>' + D.ORIG.credits.map(c => "<p>" + outLink(c[0], c[2]) + ", " + esc(c[1]) + '</p><p class="muted">' + esc(c[3]) + "</p>").join("") + '<p class="muted">' + esc(D.ORIG.changes) + " 받은 날: " + esc(D.ORIG.ver) + "</p></section>";
   return h;
 }
@@ -870,7 +871,8 @@ const ACT = {
   async aiSave() {
     const k = val("aiKey"), old = aiConf(), key = k || old.key; if (!key) { flash("열쇠를 적어 주십시오.", "bad"); return; }
     if (key.length < 8 || /\s/.test(key)) { flash("열쇠가 너무 짧거나 빈칸이 섞여 있습니다. 다시 복사해 붙여 넣어 주십시오.", "bad"); return; }
-    LS.set("ai", { key: key, model: val("aiModel") || old.model }); LS.del("gemModel");
+    if (/^sk-ant-/.test(key)) { flash("이 칸에는 Google AI Studio 열쇠를 넣습니다.", "bad"); return; }
+    LS.set("ai", { key: key }); LS.del("gemModel");
     try { await aiCall([{ role: "user", content: "연결 시험입니다. '됩니다' 한 마디만 답해 주세요." }], "", 20); flash(aiName() + "와 연결되었습니다."); } catch (e) { flash(explain(e), "bad"); }
     render();
   },
@@ -878,11 +880,10 @@ const ACT = {
   aiClose() { S.ai = null; keepY(render); },
   async aiKeep() {
     const A = S.ai, P = S.prep; if (!A || !P) return; const no = +val("aiTo") || A.to, text = val("aiOut"); if (!text) { flash("넣을 글이 없습니다.", "bad"); return; }
-    const st = stamp(new Date()), lines = text.split("\n").map(x => x.trim()).filter(Boolean).map((t, i) => (i ? "" : st + " [Claude가 풀어 씀] ") + t);
+    const st = stamp(new Date()), lines = text.split("\n").map(x => x.trim()).filter(Boolean).map((t, i) => (i ? "" : st + " [제미나이가 풀어 씀] ") + t);
     await docInsert(P.id, no, lines); S.ai = null; await prepRefresh(); recordAct("prep", P.label + ", " + stepOf(no).title); flash(stepOf(no).title + " 단계에 메모로 넣었습니다."); keepY(render);
   },
   async proseRun() { if (!S.prep) return; const pr = prosePrompt(); if (!pr) { flash("아직 적은 메모가 없습니다.", "bad"); return; } await aiRun("prose", pr, 10, 6000); },
-  async visitRun() { if (!S.prep) return; await aiRun("visit", visitPrompt(), 2, 3000); },
   async stepProse(arg) {
     const no = +arg, st = stepOf(no), L = stepInfo(no).lines.filter(x => x.trim()); if (!st || !L.length) return;
     await aiRun("step" + no, "아래는 설교 준비의 「" + st.title + "」 단계에 내가 적어 둔 메모와 모아 둔 자료다(본문: " + S.prep.label + "). 이것을 순서를 잡아 읽기 좋은 줄글로 풀어 써 줘. 여기 있는 내용만 쓰고, 출처가 적힌 것은 출처를 그대로 남긴다. 서로 다른 견해는 섞지 말고 나란히 적는다. 빠져 있어 더 찾아야 할 것은 끝에 [더 찾을 것]으로 적는다.\n\n" + L.join("\n"), no, 3000);
@@ -897,14 +898,6 @@ const ACT = {
       const when = new Date(); await docInsert((await monthDoc("독서", when)).id, 0, ["[독서] " + ymd(when) + " " + T.t + ", 토론 정리"].concat(sum.split("\n").map(x => x.trim()).filter(Boolean)));
       T.busy = false; S.notes = null; flash("토론 정리를 이달 독서 기록에 남겼습니다."); render();
     } catch (e) { T.busy = false; T.err = explain(e); render(); }
-  },
-  async proseCopy() {
-    const P = S.prep; if (!P) return; const Z = sizeOf(P.id);
-    const parts = D.STEPS.map(st => { const L = stepInfo(st.no).lines.filter(x => x.trim()); return L.length ? "[" + st.title + "]\n" + L.join("\n") : ""; }).filter(Boolean);
-    if (!parts.length) { flash("아직 적은 메모가 없습니다.", "bad"); return; }
-    const len = Z[0] === "S" ? "5분 안팎(소리 내어 읽는 분량)" : Z[0] === "M" ? "10~15분" : "30분 안팎";
-    const text = "아래는 내가 설교를 준비하며 단계마다 적은 메모다. 이 메모를 이어서 읽을 수 있는 설교 글로 풀어 써 줘.\n\n규칙:\n1. 내 메모에 있는 내용만 쓴다. 메모에 없는 사실, 예화, 인용, 성경 장절을 지어내지 않는다. 메모가 비어 이어지지 않는 곳은 [메모 없음: 무엇이 필요한지]로 표시한다.\n2. 은혜(하나님이 먼저 하시는 일)를 앞에 두고, 적용은 그 열매로 쓴다. '해야 한다'식 문장을 피한다.\n3. 분량은 " + len + ". 말하는 문장으로 쓴다.\n4. 끝에 내 메모 가운데 글에 쓰지 않은 것을 따로 적는다.\n\n본문: " + P.label + "\n\n" + parts.join("\n\n");
-    try { await navigator.clipboard.writeText(text); S.copy = ""; flash("부탁 말을 복사했습니다. Claude 채팅에 붙여 넣고, 받은 글은 원고 단계에 넣으십시오."); } catch (e) { S.copy = text; flash("복사하지 못했습니다. 아래 글을 길게 눌러 복사하십시오.", "bad"); render(); }
   },
   async bibFind() {
     const t = val("bkT"); if (!t) { flash("책 제목을 먼저 적어 주십시오.", "bad"); return; }
@@ -925,11 +918,6 @@ const ACT = {
     S.talk = { t: t, n: mine.length, notes: mine.map(x => x.head.replace(/^\[[^\]]+\] /, "") + "\n" + x.lines.join("\n")) }; S.copy = ""; render(); const el = $("talkSec"); if (el && el.scrollIntoView) el.scrollIntoView({ block: "start" });
   },
   talkClose() { S.talk = null; S.copy = ""; render(); },
-  async talkCopy() {
-    const T = S.talk; if (!T) return; const m = (LS.get("shelf", {}) || {})[T.t] || {};
-    const text = "책 「" + T.t + "」" + (m.author ? "(" + m.author + ")" : "") + "을 읽고 있다. 이 책을 두고 나와 토론해 줘.\n\n방식:\n1. 한 번에 질문 하나만 한다. 내가 답하면 그 답을 받아 더 깊이 묻는다.\n2. 먼저 내가 읽은 데까지의 줄거리와 주제를 내 말로 말하게 하고, 다음에 '왜 그런가', '내가 아는 것과 어떻게 이어지나', '동의하지 않는 곳은 어디인가', '설교와 삶 어디에 쓰겠는가'를 차례로 묻는다.\n3. 책 내용은 내가 말한 것과 아래 기록만 근거로 삼는다. 네가 아는 책 내용을 덧붙일 때는 '확인 필요'라고 밝힌다. 책에 없는 말을 지어내지 않는다.\n4. 다섯 번쯤 주고받은 뒤, 내가 한 말을 세 줄로 정리해 준다(앱의 '내 말로' 칸에 옮겨 적을 것).\n\n" + (T.notes.length ? "이번 달에 내가 남긴 기록:\n" + T.notes.join("\n\n") : "(아직 남긴 기록이 없다. 줄거리부터 물어 줘.)");
-    try { await navigator.clipboard.writeText(text); S.copy = ""; flash("부탁 말을 복사했습니다. Claude 채팅에 붙여 넣으십시오."); } catch (e) { S.copy = text; flash("복사하지 못했습니다. 아래 글을 길게 눌러 복사하십시오.", "bad"); render(); }
-  },
   async photoPick(v, el) {
     const f = el && el.files && el.files[0]; if (!f) return;
     if (!/^image\//.test(f.type)) { flash("사진 파일을 골라 주십시오.", "bad"); return; }
