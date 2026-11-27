@@ -6,7 +6,7 @@
 const $ = id => document.getElementById(id);
 const TABS = [["prep", "준비"], ["find", "찾기"], ["book", "독서"], ["bible", "권별"], ["me", "현황"]];
 /* 설교 크기: 작은 설교는 꼭 필요한 단계만 보여 준다. 고른 크기는 이 기기에 둔다 */
-const SIZES = [["L", "큰 설교 (주일, 30분 안팎)", [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11]], ["M", "중간 설교 (기도회, 10–15분)", [1, 2, 4, 5, 7, 8, 9, 10]], ["S", "작은 설교 (심방, 5분 안팎)", [1, 2, 5, 8, 9, 11]]];
+const SIZES = [["L", "큰 설교 (주일, 30분 안팎)", [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11]], ["M", "중간 설교 (기도회, 10–15분)", [1, 2, 4, 5, 7, 8, 9, 10]], ["S", "작은 설교 (심방, 5분 안팎)", [1, 2, 3, 4, 7, 8, 11]]];
 const sizeOf = id => { const k = (LS.get("prepSize", {}) || {})[id] || "L"; return SIZES.find(x => x[0] === k) || SIZES[0]; };
 const BOOK_CATS = ["신학·성경", "목회·설교", "영성·경건", "인문·철학", "역사·사회", "문학", "과학·심리", "실용·기타"];
 const TITLE = { prep: "설교 준비", bible: "권별 이해와 본문", book: "독서", find: "찾기", me: "나의 현황", set: "설정" };
@@ -482,7 +482,7 @@ function prepOpenView() {
     h += '<li class="step' + (open ? " open" : "") + (n ? " has" : "") + '" id="step' + s.no + '"><button type="button" class="sh" data-act="step" data-arg="' + s.no + '" aria-expanded="' + open + '"><span class="node">' + s.no + '</span><span class="st">' + esc(s.title) + "</span>" +
       (n ? '<span class="cnt">' + (s.write ? "쓴 글 있음" : "메모 " + n) + "</span>" : "") + "</button>" + (open ? '<div class="sb">' + stepBody(s) + "</div>" : "") + "</li>";
   }
-  return h + '</ol><p class="foot">' + btn("준비한 것 한눈에 읽기", "read", reg({ id: P.id, title: P.label + " 준비" })) + "</p>";
+  return h + '</ol>' + (Z[0] === "S" ? '<section class="sec" id="visitAsk"><h2>심방 묵상 부탁 말</h2><p class="muted">가정 상황과 전하려는 말을 적으면, 묵상 포인트 다섯 가지와 배경, 적용 제안을 Claude에게 묻는 부탁 말을 만듭니다. 가정 상황은 이 기기에만 잠시 남고 드라이브에 저장하지 않습니다.</p><label class="fld">가정 상황<textarea id="vsA" rows="2" data-draft="vs.a.' + esc(P.id) + '">' + esc(draft("vs.a." + P.id)) + '</textarea></label><label class="fld">응답·연결 본문<input id="vsB" data-draft="vs.b.' + esc(P.id) + '" value="' + esc(draft("vs.b." + P.id)) + '"></label><label class="fld">전하려는 메시지<textarea id="vsC" rows="2" data-draft="vs.c.' + esc(P.id) + '">' + esc(draft("vs.c." + P.id)) + '</textarea></label><label class="fld">동행자<input id="vsD" data-draft="vs.d.' + esc(P.id) + '" value="' + esc(draft("vs.d." + P.id)) + '"></label>' + btn("부탁 말 복사", "visitCopy", null, "pri") + (S.copy ? '<textarea class="copy" rows="6" readonly>' + esc(S.copy) + "</textarea>" : "") + "</section>" : "") + '<p class="foot">' + btn("준비한 것 한눈에 읽기", "read", reg({ id: P.id, title: P.label + " 준비" })) + "</p>";
 }
 function chapPartHtml(s) {
   const P = S.prep, bi = P.info.bookIndex, ch = P.info.ch, C = S.chap[chapKey(bi, ch)], secs = s.kinds.filter(k => k !== "text" && k !== "logos" && k !== "orig" && k !== "bri");
@@ -802,6 +802,11 @@ const ACT = {
     const parts = D.STEPS.map(st => { const L = stepInfo(st.no).lines.filter(x => x.trim() && !/^https?:/.test(x)); return L.length ? st.title + ": " + L.join(" / ").slice(0, 500) : ""; }).filter(Boolean);
     const text = "세컨브레인 예화 창고(구글 드라이브 30_예화창고)에서 아래 설교 준비에 맞는 예화를 찾아, 가장 맞는 것부터 순서대로 알려 줘. 예화마다 왜 맞는지 한 줄, 쓸 때 주의, 문서 링크를 붙여 줘. 창고에 없는 예화를 지어내지는 말아 줘.\n\n본문: " + P.label + "\n" + (parts.length ? parts.join("\n") : "(아직 적은 메모가 없음. 본문만 보고 찾아 줘.)");
     try { await navigator.clipboard.writeText(text); flash("부탁 말을 복사했습니다. Claude 채팅에 붙여 넣으십시오."); } catch (e) { S.copy = text; flash("복사하지 못했습니다. 아래 글을 길게 눌러 복사하십시오.", "bad"); }
+  },
+  async visitCopy() {
+    const P = S.prep; if (!P) return;
+    const text = "심방 설교 묵상 정리를 도와주세요.\n- 가정 상황: " + (val("vsA") || "(적지 않음)") + "\n- 설교 본문: " + P.label + "\n- 응답/연결 본문: " + (val("vsB") || "(없음)") + "\n- 전하려는 메시지: " + (val("vsC") || "(적지 않음)") + "\n- 동행자: " + (val("vsD") || "(없음)") + "\n\n요청:\n1. 묵상 포인트 5가지(원어 주해 포함, 기초 설명 생략)\n2. 배경 지식(저자·시대·본문 간 어휘 연결)\n3. 적용 제안(은혜를 앞세우고 도덕주의 금지)\n4. 한 문장 요지\n본문에 있는 내용과 해석·추론은 구분하고, 성경 구절은 \"몇 장 몇 절\"로 적어 주세요. 간결하고 분명하게.";
+    try { await navigator.clipboard.writeText(text); flash("부탁 말을 복사했습니다. Claude 채팅에 붙여 넣으십시오."); } catch (e) { S.copy = text; flash("복사하지 못했습니다. 아래 글을 길게 눌러 복사하십시오.", "bad"); render(); }
   },
   goalSet(v) { LS.set("bookGoal", Math.max(1, Math.min(7, +v || 5))); render(); },
   bookNew() {
