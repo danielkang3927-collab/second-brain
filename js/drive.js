@@ -92,6 +92,18 @@ async function gOcr(name, parent, mime, b64) {
   const r = await gfetch(G.UPLOAD + "/files?uploadType=multipart&ocrLanguage=ko&fields=" + enc("id,name,webViewLink,parents"), { method: "POST", headers: { "Content-Type": "multipart/related; boundary=" + b }, body: payload }, 60000);
   return await r.json();
 }
+/* Claude 연결: 열쇠는 이 기기에만 둔다(드라이브나 저장소에 올리지 않는다) */
+const aiConf = () => { const c = LS.get("ai", null) || {}; return { key: String(c.key || ""), model: c.model || "claude-sonnet-5-5" }; };
+const aiOn = () => !!aiConf().key;
+async function aiCall(msgs, system, max) {
+  const c = aiConf(); if (!c.key) throw new GErr("aikey", "설정에서 Claude 연결 열쇠를 먼저 넣어 주십시오.");
+  let res;
+  try { res = await fetchT("https://api.anthropic.com/v1/messages", { method: "POST", headers: { "content-type": "application/json", "x-api-key": c.key, "anthropic-version": "2023-06-01", "anthropic-dangerous-direct-browser-access": "true" }, body: JSON.stringify({ model: c.model, max_tokens: max || 3000, system: system || "", messages: msgs }) }, 120000); }
+  catch (e) { const late = e && e.name === "AbortError"; throw new GErr(late ? "timeout" : "network", late ? "Claude가 제때 답하지 않았습니다. 다시 눌러 주십시오." : "인터넷 연결을 확인해 주십시오."); }
+  let j = null; try { j = await res.json(); } catch (e) { }
+  if (!res.ok) { const why = (j && j.error && j.error.message) || ""; throw new GErr("ai", res.status === 401 ? "Claude 연결 열쇠가 맞지 않습니다. 설정에서 다시 넣어 주십시오." : res.status === 429 ? "지금 요청이 많습니다. 잠시 뒤 다시 눌러 주십시오." : /credit|balance|billing/i.test(why) ? "Claude API 잔액이 없습니다. 콘솔에서 충전해 주십시오." : res.status === 404 ? "고른 모델을 쓸 수 없습니다. 설정에서 다른 모델을 골라 주십시오." : "Claude가 답하지 못했습니다(" + res.status + ")."); }
+  return ((j && j.content) || []).filter(x => x.type === "text").map(x => x.text).join("\n").trim();
+}
 async function gFolder(name) { const r = await gfetch(G.DRIVE + "/files?fields=" + enc("id,name"), { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ name: name, mimeType: FOLDER_MIME }) }); return await r.json(); }
 /* 활동 기록 파일만 고쳐 쓴다 */
 async function gPutJson(id, text) { const r = await gfetch(G.UPLOAD + "/files/" + enc(id) + "?uploadType=media&fields=id", { method: "PATCH", headers: { "Content-Type": "application/json; charset=UTF-8" }, body: text }, 30000); return await r.json(); }

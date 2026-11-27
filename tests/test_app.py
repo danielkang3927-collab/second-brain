@@ -52,6 +52,14 @@ def new_ctx(browser, fake, viewport=PHONE, scheme="light", seed_ls=None):
     ctx.route("https://accounts.google.com/**", fake.auth)
     ctx.route("https://www.googleapis.com/**", fake.api)
     ctx.route("https://docs.googleapis.com/**", fake.docs)
+    def _ai(r):
+        import json as _j
+        body = _j.loads(r.request.post_data or "{}")
+        AI_CALLS.append((r.request.headers.get("x-api-key", ""), body))
+        if r.request.headers.get("x-api-key") != "sk-ant-test":
+            return r.fulfill(status=401, content_type="application/json", body='{"error":{"message":"invalid x-api-key"}}')
+        r.fulfill(status=200, content_type="application/json", headers={"access-control-allow-origin": "*"}, body=_j.dumps({"content": [{"type": "text", "text": "가짜 답 첫 줄\n둘째 줄"}]}))
+    ctx.route("https://api.anthropic.com/**", _ai)
     ctx.route("https://books.google.com/**", lambda r: r.fulfill(status=200, content_type="image/gif", body=b"GIF89a\x01\x00\x01\x00\x80\x00\x00\x00\x00\x00\xff\xff\xff!\xf9\x04\x01\x00\x00\x00\x00,\x00\x00\x00\x00\x01\x00\x01\x00\x00\x02\x02D\x01\x00;"))
     # 실제 연결 값이 들어 있어도, 점검은 연결 값 없이 시작해 직접 넣는 길까지 확인한다.
     _data = open(os.path.join(ROOT, "js/data.js"), encoding="utf-8").read()
@@ -64,6 +72,8 @@ def new_ctx(browser, fake, viewport=PHONE, scheme="light", seed_ls=None):
     page.on("console", lambda m: errors.append("콘솔: " + m.text) if m.type == "error" and "Failed to load resource" not in m.text else None)
     return ctx, page
 
+
+AI_CALLS = []
 
 def btn(page, name, scope="body"):
     return page.locator(scope).get_by_role("button", name=name, exact=True).first
@@ -231,6 +241,25 @@ def run_main(browser):
     ok("v12 작은 설교는 일곱 단계, 심방 부탁 말 칸이 보임", page.locator(".spine .step").count() == 7 and page.locator("#visitAsk").count() == 1 and page.locator("#vsA").count() == 1, str(page.locator(".spine .step").count()))
     page.select_option("#pzS", "L")
     ok("v13 메모를 글로 풀어 달라는 단추가 있음", btn(page, "메모를 글로 풀어 달라고 하기").count() == 1)
+    ok("v14 열쇠가 없으면 Claude 단추가 없음", btn(page, "메모를 Claude로 풀어 쓰기").count() == 0)
+    page.get_by_role("button", name="설정").first.click()
+    page.fill("#aiKey", "틀린열쇠")
+    btn(page, "저장하고 시험하기").click()
+    flash(page, "sk-ant-로 시작합니다")
+    page.fill("#aiKey", "sk-ant-test")
+    btn(page, "저장하고 시험하기").click()
+    flash(page, "Claude와 연결되었습니다")
+    ok("v14 설정에 끝자리만 보임", "끝자리 test" in page.inner_text("#aiSet") and "sk-ant-test" not in page.inner_text("#aiSet"))
+    nav(page, "준비")
+    page.select_option("#pzS", "S")
+    page.fill("#vsA", "시험 가정")
+    btn(page, "여기서 Claude에게 묻기").click()
+    page.wait_for_selector("#aiOut")
+    ok("v14 Claude가 쓴 글이 상자에 나옴", "가짜 답 첫 줄" in page.input_value("#aiOut") and "시험 가정" in AI_CALLS[-1][1]["messages"][0]["content"] and "지어내지 않는다" in AI_CALLS[-1][1]["system"])
+    btn(page, "준비 메모로 넣기").click()
+    flash(page, "단계에 메모로 넣었습니다")
+    ok("v14 넣은 글이 준비 문서에 있음", "Claude가 풀어 씀" in main_text(page) or page.locator(".spine .step.has").count() >= 1)
+    page.select_option("#pzS", "L")
     ok("v12 큰 설교에는 심방 부탁 말 칸이 없음", page.locator("#visitAsk").count() == 0)
     ok("v11 큰 설교로 되돌리면 다시 열한 단계", page.locator(".spine .step").count() == 11)
     shot(page, "phone_03_step1", top=True)
@@ -513,6 +542,12 @@ def run_main(browser):
     btn(page, "토론하기").click()
     page.wait_for_selector("#talkSec")
     ok("v13 토론하기 칸이 열림", "부탁 말" in page.inner_text("#talkSec"))
+    btn(page, "여기서 토론 시작").click()
+    page.wait_for_selector("#talkSec .say.ai")
+    page.fill("#talkIn", "내 답입니다")
+    btn(page, "보내기").click()
+    page.wait_for_selector("#talkSec .say.me")
+    ok("v14 앱 안에서 토론이 오감", page.locator("#talkSec .say.ai").count() >= 1 and "시험용 책" in AI_CALLS[-1][1]["messages"][0]["content"] and AI_CALLS[-1][1]["messages"][-1]["content"] == "내 답입니다", str(len(AI_CALLS)))
     btn(page, "닫기").click()
     ok("v13 읽는 법 길잡이가 있음", "읽는 법 길잡이" in main_text(page))
     btn(page, "한 줄 남기기").click()
@@ -561,6 +596,18 @@ def run_main(browser):
     ps, _ = paras(fake, "독서_" + YM)
     ok("v11 질문과 내 말로가 꼬리표와 함께 쌓임", ps[-2][1] == "질문: 왜 그런가" and ps[-1][1] == "내 말로: 내 말로 적은 줄", str(ps[-3:]))
     ok("v11 올해 다 읽은 책 칸이 보임", "년에 다 읽은 책" in main_text(page))
+    btn(page, "토론하기").click()
+    page.wait_for_selector("#talkSec")
+    btn(page, "여기서 토론 시작").click()
+    page.wait_for_selector("#talkSec .say.ai")
+    page.fill("#talkIn", "정리할 답")
+    btn(page, "보내기").click()
+    page.wait_for_selector("#talkIn")
+    btn(page, "세 줄로 정리해 남기기").click()
+    flash(page, "토론 정리를 이달 독서 기록에 남겼습니다")
+    ps, _ = paras(fake, "독서_" + YM)
+    ok("v14 토론 정리가 이달 독서 문서에 남음", any("토론 정리" in x[1] for x in ps), str(ps[-4:]))
+    btn(page, "닫기").click()
     shot(page, "phone_10_book")
     no_overflow(page, "독서 화면")
 
