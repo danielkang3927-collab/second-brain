@@ -85,6 +85,13 @@ async function gCreate(meta, type, body) {
   const r = await gfetch(G.UPLOAD + "/files?uploadType=multipart&fields=" + enc("id,name,webViewLink,parents"), { method: "POST", headers: { "Content-Type": "multipart/related; boundary=" + b }, body: payload }, 30000);
   return await r.json();
 }
+/* 사진을 올리며 구글이 글자를 읽게 한다(OCR). 사진과 읽은 글이 든 구글 문서가 내 기록 폴더에 생긴다 */
+async function gOcr(name, parent, mime, b64) {
+  const b = "sb" + Math.random().toString(36).slice(2) + Date.now().toString(36), meta = { name: name, mimeType: "application/vnd.google-apps.document", parents: [parent] };
+  const payload = "--" + b + "\r\nContent-Type: application/json; charset=UTF-8\r\n\r\n" + JSON.stringify(meta) + "\r\n--" + b + "\r\nContent-Type: " + mime + "\r\nContent-Transfer-Encoding: base64\r\n\r\n" + b64 + "\r\n--" + b + "--";
+  const r = await gfetch(G.UPLOAD + "/files?uploadType=multipart&ocrLanguage=ko&fields=" + enc("id,name,webViewLink,parents"), { method: "POST", headers: { "Content-Type": "multipart/related; boundary=" + b }, body: payload }, 60000);
+  return await r.json();
+}
 async function gFolder(name) { const r = await gfetch(G.DRIVE + "/files?fields=" + enc("id,name"), { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ name: name, mimeType: FOLDER_MIME }) }); return await r.json(); }
 /* 활동 기록 파일만 고쳐 쓴다 */
 async function gPutJson(id, text) { const r = await gfetch(G.UPLOAD + "/files/" + enc(id) + "?uploadType=media&fields=id", { method: "PATCH", headers: { "Content-Type": "application/json; charset=UTF-8" }, body: text }, 30000); return await r.json(); }

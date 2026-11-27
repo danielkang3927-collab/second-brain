@@ -103,6 +103,8 @@ class Fake:
 
     # ---------- 드라이브 ----------
     def api(self, route):
+        if urllib.parse.urlsplit(route.request.url).path == "/books/v1/volumes":
+            return self._json(route, {"items": [{"volumeInfo": {"title": "시험용 책", "authors": ["홍길동"], "publisher": "시험출판", "publishedDate": "2020-03-01", "pageCount": 240, "imageLinks": {"thumbnail": "http://books.google.com/books/content?id=x1"}}}]})
         if not self._gate(route):
             return
         req = route.request
@@ -167,6 +169,9 @@ class Fake:
         if not parent["app"]:
             self.violations.append("create inside vault folder " + parent["name"])
             return self._err(route, 403, "The user has not granted the app write access to the file.", "appNotAuthorizedToFile")
+        if meta.get("mimeType") == DOC and "image/" in head:
+            f = self._put(self._id(), meta["name"], DOC, meta["parents"], app=True, md="![][image1]\n\n사진에서 읽은 첫 줄\n\n둘째 줄\n")
+            return self._json(route, self.pub(f))
         if meta.get("mimeType") == DOC:
             if "text/markdown" in head and self.no_markdown:
                 return self._err(route, 400, "Bad Request: unsupported import format", "badRequest")
