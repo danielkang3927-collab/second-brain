@@ -4,8 +4,12 @@
    자료는 모두 앱 안에서 읽는다. 구글 문서로 나가는 링크는 두지 않는다. */
 "use strict";
 const $ = id => document.getElementById(id);
-const TABS = [["prep", "준비"], ["bible", "성경"], ["book", "독서"], ["find", "찾기"], ["me", "현황"]];
-const TITLE = { prep: "설교 준비", bible: "성경", book: "독서", find: "찾기", me: "나의 현황", set: "설정" };
+const TABS = [["prep", "준비"], ["find", "찾기"], ["book", "독서"], ["bible", "권별"], ["me", "현황"]];
+/* 설교 크기: 작은 설교는 꼭 필요한 단계만 보여 준다. 고른 크기는 이 기기에 둔다 */
+const SIZES = [["L", "큰 설교 (주일, 30분 안팎)", [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11]], ["M", "중간 설교 (기도회, 10–15분)", [1, 2, 4, 5, 7, 8, 9, 10]], ["S", "작은 설교 (심방, 5분 안팎)", [1, 2, 5, 8, 9, 11]]];
+const sizeOf = id => { const k = (LS.get("prepSize", {}) || {})[id] || "L"; return SIZES.find(x => x[0] === k) || SIZES[0]; };
+const BOOK_CATS = ["신학·성경", "목회·설교", "영성·경건", "인문·철학", "역사·사회", "문학", "과학·심리", "실용·기타"];
+const TITLE = { prep: "설교 준비", bible: "권별 이해와 본문", book: "독서", find: "찾기", me: "나의 현황", set: "설정" };
 const WD = ["주일", "월요일", "화요일", "수요일", "목요일", "금요일", "토요일"];
 const U = Object.assign({ tab: "prep", prepId: "", step: 1, b: 0, ch: 1, ver: "a", whole: false }, LS.get("ui", null) || {});
 const S = {
@@ -431,7 +435,8 @@ function prepView() {
   return '<section class="sec"><h2>새 준비</h2>' + pickers() +
     '<div class="row"><label class="fld">절<input id="fV" type="text" autocomplete="off" placeholder="예: 1-10" data-draft="f.v" value="' + esc(draft("f.v")) + '"></label>' +
     '<label class="fld">설교 날짜<input id="fD" type="date" data-draft="f.d" value="' + esc(draft("f.d") || nextSunday()) + '"></label></div>' +
-    '<p class="muted">절을 비우면 장 전체로 준비합니다.</p>' + btn("준비 시작", "prepStart", null, "pri wide") + "</section>" +
+    '<label class="fld">설교 크기<select id="fS" data-draft="f.s">' + SIZES.map(z => '<option value="' + z[0] + '"' + ((draft("f.s") || "L") === z[0] ? " selected" : "") + ">" + z[1] + "</option>").join("") + "</select></label>" +
+    '<p class="muted">절을 비우면 장 전체로 준비합니다. 작은 설교는 꼭 필요한 단계만 보입니다. 크기는 준비를 연 뒤에도 바꿀 수 있습니다.</p>' + btn("준비 시작", "prepStart", null, "pri wide") + "</section>" +
     '<section class="sec"><h2>이어서 하기</h2><div id="prepsPart">' + prepsHtml() + "</div></section>";
 }
 function prepsHtml() {
@@ -469,8 +474,10 @@ function scrollStep() { const el = U.step ? $("step" + U.step) : null; if (el &&
 function prepOpenView() {
   if (S.prepSt === "err") return '<section class="sec"><p class="muted">' + esc(S.prepErr) + '</p><div class="row two">' + btn("다시 열기", "prepOpen", U.prepId) + btn("목록으로", "prepList") + "</div></section>";
   const P = S.prep; if (!P) return '<section class="sec"><p class="muted">준비한 것을 여는 중입니다.</p></section>';
-  let h = '<p class="when">' + esc(kdate(P.info.date)) + ' 설교</p><ol class="spine">';
+  const Z = sizeOf(P.id);
+  let h = '<p class="when">' + esc(kdate(P.info.date)) + ' 설교</p><p class="legend"><label>설교 크기 <select id="pzS" data-chg="sizeSet">' + SIZES.map(z => '<option value="' + z[0] + '"' + (z[0] === Z[0] ? " selected" : "") + ">" + z[1] + "</option>").join("") + '</select></label><span>' + Z[2].length + '단계</span></p><ol class="spine">';
   for (const s of D.STEPS) {
+    if (Z[2].indexOf(s.no) < 0 && !(stepInfo(s.no).lines.filter(x => x.trim()).length + stepInfo(s.no).tail.length)) continue;
     const info = stepInfo(s.no), n = info.lines.filter(x => x.trim()).length + info.tail.length, open = U.step === s.no;
     h += '<li class="step' + (open ? " open" : "") + (n ? " has" : "") + '" id="step' + s.no + '"><button type="button" class="sh" data-act="step" data-arg="' + s.no + '" aria-expanded="' + open + '"><span class="node">' + s.no + '</span><span class="st">' + esc(s.title) + "</span>" +
       (n ? '<span class="cnt">' + (s.write ? "쓴 글 있음" : "메모 " + n) + "</span>" : "") + "</button>" + (open ? '<div class="sb">' + stepBody(s) + "</div>" : "") + "</li>";
@@ -545,10 +552,8 @@ function recHtml() {
 
 /* ---------- 화면: 성경 ---------- */
 function bibleView() {
-  const key = "qt." + U.b + "." + U.ch;
   return '<section class="sec">' + pickers() + '<div class="row two">' + btn("앞 장", "chStep", -1) + btn("다음 장", "chStep", 1) + '</div><div id="briPart" data-bi="' + U.b + '">' + briHtml(U.b) + '</div></section><div id="chapPart" data-key="' + esc(chapPartKey()) + '">' + bibleChapHtml() + "</div>" +
-    '<section class="sec"><h2>묵상</h2><label class="fld">오늘 말씀이 건네신 것<textarea id="qtText" rows="4" data-draft="' + key + '">' + esc(draft(key)) + "</textarea></label>" + btn("묵상 저장", "qtSave", null, "pri wide") +
-    '<p class="foot">' + btn("이번 달 묵상 읽기", "readMonth", "묵상", "inl") + '</p></section><div id="matPart">' + bibleMatsHtml() + "</div>";
+    '<div id="matPart">' + bibleMatsHtml() + "</div>";
 }
 function bibleChapHtml() {
   const b = book(U.b) || book(0), C = S.chap[chapKey(U.b, U.ch)], label = passageLabel(b, U.ch, ""), okC = !!(C && C.st === "ok"), orig = U.ver === "o";
@@ -593,20 +598,28 @@ function bookView() {
       '<div class="findrow"><input id="bkPg' + i + '" type="text" inputmode="numeric" autocomplete="off" aria-label="' + esc(b.t) + ' 오늘 읽은 데까지 쪽" placeholder="오늘 읽은 데까지(쪽, 비워도 됨)">' + btn("읽었습니다", "bookRead", reg({ t: b.t, i: i }), "pri") + "</div>" +
       '<p class="acts">' + btn("한 줄 남기기", "bookNote", reg(b.t), "inl") + btn("다 읽었습니다", "bookDone", reg(b.t), "inl") + btn("목록에서 빼기", "bookOff", reg(b.t), "inl") + "</p></li>";
   }).join("") + "</ul>" : '<p class="muted">읽는 책을 아래에 적어 두면 여기에 놓입니다. 날마다 「읽었습니다」만 눌러도 기록이 이어집니다.</p>') +
-    '<details class="pts"' + (list.length ? "" : " open") + '><summary>새 책 시작하기</summary><label class="fld">책 제목<input id="bkT" type="text" autocomplete="off" maxlength="60" data-draft="bk.t" value="' + esc(draft("bk.t")) + '"></label><label class="fld">전체 쪽수 (비워도 됩니다)<input id="bkTot" type="text" inputmode="numeric" autocomplete="off"></label>' + btn("읽기 시작", "bookNew", null, "pri wide") + "</details></section>";
-  if (S.note) h += '<section class="sec" id="noteSec"><h2>한 줄 남기기</h2><p class="when">' + esc(S.note) + '</p><div class="row"><label class="fld">쪽<input id="bkP" type="text" inputmode="numeric" autocomplete="off" data-draft="bk.p" value="' + esc(draft("bk.p")) + '"></label>' +
+    '<details class="pts"' + (list.length ? "" : " open") + '><summary>새 책 시작하기</summary><label class="fld">책 제목<input id="bkT" type="text" autocomplete="off" maxlength="60" data-draft="bk.t" value="' + esc(draft("bk.t")) + '"></label><label class="fld">전체 쪽수 (비워도 됩니다)<input id="bkTot" type="text" inputmode="numeric" autocomplete="off"></label><label class="fld">분야<select id="bkCat">' + BOOK_CATS.map(c => "<option>" + c + "</option>").join("") + "</select></label>" + btn("읽기 시작", "bookNew", null, "pri wide") + "</details></section>";
+  if (S.note) h += '<section class="sec" id="noteSec"><h2>한 줄 남기기</h2><p class="when">' + esc(S.note) + '</p><p class="muted">읽고, 묻고, 내 말로 적습니다. 밑줄만 긋는 것보다 「왜 그런가」를 묻고 책을 덮은 채 내 말로 적을 때 생각이 남습니다. 칸은 적고 싶은 것만 적으면 됩니다.</p><div class="row"><label class="fld">쪽<input id="bkP" type="text" inputmode="numeric" autocomplete="off" data-draft="bk.p" value="' + esc(draft("bk.p")) + '"></label>' +
     '<label class="fld">관련 본문<input id="bkR" type="text" autocomplete="off" placeholder="예: 눅 19:1-10" data-draft="bk.r" value="' + esc(draft("bk.r")) + '"></label></div>' +
-    '<label class="fld">옮겨 적기와 생각<textarea id="bkX" rows="5" data-draft="bk.x">' + esc(draft("bk.x")) + '</textarea></label><label class="chk"><input id="bkI" type="checkbox"> 예화로도 넘기기</label><div class="row two">' + btn("남기기", "bookSave", null, "pri") + btn("그만두기", "noteCancel") + "</div></section>";
+    '<label class="fld">남는 문장 (짧게 옮겨 적기)<textarea id="bkX" rows="3" data-draft="bk.x">' + esc(draft("bk.x")) + '</textarea></label>' +
+    '<label class="fld">질문: 왜 그런가, 내가 아는 것과 어떻게 이어지나<textarea id="bkQ" rows="2" data-draft="bk.q">' + esc(draft("bk.q")) + '</textarea></label>' +
+    '<label class="fld">내 말로: 책을 덮고 한두 문장<textarea id="bkM" rows="2" data-draft="bk.m">' + esc(draft("bk.m")) + '</textarea></label>' +
+    '<label class="fld">쓸 곳: 설교, 대화, 삶에서<input id="bkU" type="text" autocomplete="off" data-draft="bk.u" value="' + esc(draft("bk.u")) + '"></label><label class="chk"><input id="bkI" type="checkbox"> 예화로도 넘기기</label><div class="row two">' + btn("남기기", "bookSave", null, "pri") + btn("그만두기", "noteCancel") + "</div></section>";
+  const yr = t.slice(0, 4), meta = LS.get("shelf", {}) || {}, fin = {}, seen = {};
+  for (const e of A.log) { if (e.k !== "book" || e.d.slice(0, 4) !== yr) continue; const m = e.n.match(/^(.*?), 완독$/); if (!m || seen[m[1]]) continue; seen[m[1]] = 1; const c = (meta[m[1]] || {}).cat || "분야 없음"; fin[c] = (fin[c] || 0) + 1; }
+  const tot = Object.keys(seen).length;
+  h += '<section class="sec"><h2>' + yr + "년에 다 읽은 책 " + tot + "권</h2>" + (tot ? '<ul class="links">' + Object.keys(fin).sort((x, y) => fin[y] - fin[x]).map(c => "<li>" + esc(c) + ' <span class="ex">' + fin[c] + "권</span></li>").join("") + "</ul>" : '<p class="muted">「다 읽었습니다」를 누른 책이 분야별로 여기에 세어집니다.</p>') + '<p class="muted">분야는 이 기기에 적어 둔 것으로 셉니다.</p></section>';
   return h + '<section class="sec"><h2>이번 달에 남긴 것</h2><div id="notesPart">' + notesHtml() + "</div></section>";
 }
 
 /* ---------- 화면: 찾기 ---------- */
-const GROUPS = ["성경", "설교 요지", "예화", "내 설교", "원고", "독서", "방법론", "메모", "내 기록"];
+const GROUPS = ["예화", "설교 요지", "내 설교", "원고", "독서", "성경", "방법론", "메모", "내 기록"];
 function groupOf(f) { const p = (f.parents || [])[0], F = D.FOLDERS; return p === F.bible || (BKF && Object.keys(BKF).some(k => BKF[k] === p)) ? "성경" : p === F.yoji ? "설교 요지" : p === F.illust ? "예화" : p === F.mine ? "내 설교" : p === F.manu ? "원고" : p === F.read ? "독서" : p === F.method ? "방법론" : p === F.memo ? "메모" : "내 기록"; }
 function findView() {
   const F = S.find;
   let h = '<section class="sec"><div class="findrow"><input id="q" type="search" enterkeyhint="search" autocomplete="off" aria-label="찾을 말" placeholder="낱말이나 문장" data-draft="q" data-enter="find" value="' + esc(draft("q")) + '">' + btn("찾기", "find", null, "pri") + "</div>" +
     '<p class="muted">낱말이나 문장을 적거나, 자판의 마이크로 말해도 됩니다. 설교 요지, 예화, 원고, 내 설교, 독서, 성경 본문, 내 기록에서 찾습니다.</p></section>';
+  if (S.prep) h += '<section class="sec"><h2>Claude에게 맞는 예화 묻기</h2><p class="muted">지금 준비(' + esc(S.prep.label) + ')에 적은 글을 붙여, 예화 창고에서 맞는 예화를 순서대로 골라 달라는 부탁 말을 만듭니다. 복사해서 Claude 채팅에 붙이면 됩니다.</p>' + btn("부탁 말 복사", "askCopy", null, "wide") + "</section>";
   if (!F) return h;
   if (F.st === "ing") return h + '<section class="sec"><p class="muted">찾는 중입니다.</p></section>';
   if (F.st === "err") return h + '<section class="sec"><p class="muted">' + esc(F.err) + "</p></section>";
@@ -724,7 +737,8 @@ const ACT = {
   prepList() { U.prepId = ""; saveUi(); S.prep = null; S.prepSt = ""; S.copy = ""; S.reader = null; S.edit = null; S.word = null; render(); window.scrollTo(0, 0); S.preps = null; loadPreps(true); },
   prepOpen(id) { U.step = 1; return openPrep(id); },
   async prepStart() {
-    const b = book(U.b) || book(0), ch = U.ch, vRaw = val("fV"), date = val("fD") || nextSunday();
+    const b = book(U.b) || book(0), ch = U.ch, vRaw = val("fV"), date = val("fD") || nextSunday(), size = val("fS") || "L";
+    const keepSize = id => { const m = LS.get("prepSize", {}) || {}; m[id] = size; LS.set("prepSize", m); };
     if (vRaw && !parseVerses(vRaw)) { flash("절은 1-10 이나 1, 5 처럼 적어 주십시오.", "bad"); return; }
     const verses = vRaw.replace(/절/g, "").replace(/\s+/g, "").replace(/[~–]/g, "-"), title = prepTitle(date, b, ch, verses), label = passageLabel(b, ch, verses);
     const had = await findInMy(title);
@@ -733,8 +747,9 @@ const ACT = {
     const made = await createInMy(title, prepTemplate({ label: label, date: date, chapterTitle: chapterTitle(b, ch), chapterUrl: C.st === "ok" ? C.url : "", today: today() }));
     draftSet("f.v", ""); draftSet("f.d", ""); recordAct("prep", label + ", 준비 시작");
     S.preps = (S.preps || []); S.preps.unshift({ id: made.id, name: title, info: parsePrepTitle(title), label: label });
-    U.step = 1; return openPrep(made.id);
+    keepSize(made.id); U.step = 1; return openPrep(made.id);
   },
+  sizeSet(v) { if (!S.prep) return; const m = LS.get("prepSize", {}) || {}; m[S.prep.id] = SIZES.some(z => z[0] === v) ? v : "L"; LS.set("prepSize", m); if (sizeOf(S.prep.id)[2].indexOf(U.step) < 0) U.step = 0; saveUi(); keepY(render); },
   step(no) { U.step = U.step === +no ? 0 : +no; saveUi(); S.copy = ""; S.edit = null; S.del = null; S.word = null; S.clash = null; render(); scrollStep(); enter(); },
   async memoSave(arg) {
     const no = +arg, P = S.prep, key = "p." + P.id + "." + no, el = $("memo" + no), text = String(el ? el.value : draft(key)).trim();
@@ -782,10 +797,16 @@ const ACT = {
     await docInsert(doc.id, 0, ["[묵상] " + ymd(when) + " " + label].concat(text.split("\n").map(x => x.trim()).filter(Boolean)));
     draftSet(key, ""); recordAct("qt", label); flash("묵상을 저장했습니다."); keepY(render);
   },
+  async askCopy() {
+    const P = S.prep; if (!P) return;
+    const parts = D.STEPS.map(st => { const L = stepInfo(st.no).lines.filter(x => x.trim() && !/^https?:/.test(x)); return L.length ? st.title + ": " + L.join(" / ").slice(0, 500) : ""; }).filter(Boolean);
+    const text = "세컨브레인 예화 창고(구글 드라이브 30_예화창고)에서 아래 설교 준비에 맞는 예화를 찾아, 가장 맞는 것부터 순서대로 알려 줘. 예화마다 왜 맞는지 한 줄, 쓸 때 주의, 문서 링크를 붙여 줘. 창고에 없는 예화를 지어내지는 말아 줘.\n\n본문: " + P.label + "\n" + (parts.length ? parts.join("\n") : "(아직 적은 메모가 없음. 본문만 보고 찾아 줘.)");
+    try { await navigator.clipboard.writeText(text); flash("부탁 말을 복사했습니다. Claude 채팅에 붙여 넣으십시오."); } catch (e) { S.copy = text; flash("복사하지 못했습니다. 아래 글을 길게 눌러 복사하십시오.", "bad"); }
+  },
   goalSet(v) { LS.set("bookGoal", Math.max(1, Math.min(7, +v || 5))); render(); },
   bookNew() {
     const t = val("bkT").slice(0, 60), tot = parseInt(val("bkTot"), 10) || 0; if (!t) { flash("책 제목을 적어 주십시오.", "bad"); return; }
-    const meta = LS.get("shelf", {}) || {}; meta[t] = { total: tot || (meta[t] || {}).total || 0, at: today() }; LS.set("shelf", meta);
+    const meta = LS.get("shelf", {}) || {}; meta[t] = { total: tot || (meta[t] || {}).total || 0, at: today(), cat: val("bkCat") || (meta[t] || {}).cat || "" }; LS.set("shelf", meta);
     LS.set("shelfOff", (LS.get("shelfOff", []) || []).filter(x => x !== t)); draftSet("bk.t", ""); flash("「" + t + "」를 읽는 책에 놓았습니다."); render();
   },
   bookRead(arg) { const it = R[+arg]; if (!it) return; const p = parseInt(val("bkPg" + it.i), 10) || 0; recordAct("book", it.t + (p ? ", " + p + "쪽" : "")); flash("「" + it.t + "」 읽은 것으로 적었습니다." + (p ? " " + p + "쪽까지." : "")); render(); },
@@ -798,12 +819,13 @@ const ACT = {
   bookNote(arg) { const t = R[+arg]; if (!t) return; S.note = t; render(); const el = $("noteSec"); if (el && el.scrollIntoView) el.scrollIntoView({ block: "start" }); },
   noteCancel() { S.note = ""; render(); },
   async bookSave() {
-    const t = S.note, p = val("bkP"), r = val("bkR"), x = val("bkX"), ill = !!($("bkI") && $("bkI").checked); if (!t) return;
-    if (!x) { flash("적은 것이 없습니다.", "bad"); return; }
-    const when = new Date(), body = x.split("\n").map(y => y.trim()).filter(Boolean), head = " " + ymd(when) + " " + t + (p ? ", " + p + "쪽" : "") + (r ? ", 관련 본문 " + r : "");
+    const t = S.note, p = val("bkP"), r = val("bkR"), x = val("bkX"), q = val("bkQ"), mine = val("bkM"), use = val("bkU"), ill = !!($("bkI") && $("bkI").checked); if (!t) return;
+    if (!x && !q && !mine && !use) { flash("적은 것이 없습니다.", "bad"); return; }
+    const flat = (tag, v) => v ? [tag + v.split("\n").map(y => y.trim()).filter(Boolean).join(" ")] : [];
+    const when = new Date(), body = x.split("\n").map(y => y.trim()).filter(Boolean).concat(flat("질문: ", q), flat("내 말로: ", mine), flat("쓸 곳: ", use)), head = " " + ymd(when) + " " + t + (p ? ", " + p + "쪽" : "") + (r ? ", 관련 본문 " + r : "");
     await docInsert((await monthDoc("독서", when)).id, 0, ["[독서]" + head].concat(body));
     if (ill) await docInsert((await monthDoc("예화", when)).id, 0, ["[예화]" + head].concat(body));
-    draftSet("bk.p", ""); draftSet("bk.x", ""); draftSet("bk.r", "");
+    draftSet("bk.p", ""); draftSet("bk.x", ""); draftSet("bk.r", ""); draftSet("bk.q", ""); draftSet("bk.m", ""); draftSet("bk.u", "");
     const st = bookStats(S.act)[t]; if (!st || st.last !== today() || p) recordAct("book", t + (p ? ", " + p + "쪽" : ""));
     S.note = ""; S.notes = null; flash(ill ? "남겼습니다. 이달 예화 모음에도 넣었습니다." : "남겼습니다."); render();
   },
