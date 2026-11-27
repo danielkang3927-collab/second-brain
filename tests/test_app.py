@@ -60,6 +60,15 @@ def new_ctx(browser, fake, viewport=PHONE, scheme="light", seed_ls=None):
             return r.fulfill(status=401, content_type="application/json", body='{"error":{"message":"invalid x-api-key"}}')
         r.fulfill(status=200, content_type="application/json", headers={"access-control-allow-origin": "*"}, body=_j.dumps({"content": [{"type": "text", "text": "가짜 답 첫 줄\n둘째 줄"}]}))
     ctx.route("https://api.anthropic.com/**", _ai)
+    def _gem(r):
+        import json as _j
+        if r.request.headers.get("x-goog-api-key") != "AIzaTEST":
+            return r.fulfill(status=400, content_type="application/json", body='{"error":{"message":"API key not valid"}}')
+        if r.request.method == "GET":
+            return r.fulfill(status=200, content_type="application/json", body=_j.dumps({"models": [{"name": "models/gemini-9-flash", "supportedGenerationMethods": ["generateContent"]}, {"name": "models/gemini-9-flash-lite", "supportedGenerationMethods": ["generateContent"]}, {"name": "models/gemini-9-flash-image", "supportedGenerationMethods": ["generateContent"]}]}))
+        GEM_CALLS.append((r.request.url, _j.loads(r.request.post_data or "{}")))
+        r.fulfill(status=200, content_type="application/json", body=_j.dumps({"candidates": [{"content": {"parts": [{"text": "제미나이 가짜 답"}]}}]}))
+    ctx.route("https://generativelanguage.googleapis.com/**", _gem)
     ctx.route("https://books.google.com/**", lambda r: r.fulfill(status=200, content_type="image/gif", body=b"GIF89a\x01\x00\x01\x00\x80\x00\x00\x00\x00\x00\xff\xff\xff!\xf9\x04\x01\x00\x00\x00\x00,\x00\x00\x00\x00\x01\x00\x01\x00\x00\x02\x02D\x01\x00;"))
     # 실제 연결 값이 들어 있어도, 점검은 연결 값 없이 시작해 직접 넣는 길까지 확인한다.
     _data = open(os.path.join(ROOT, "js/data.js"), encoding="utf-8").read()
@@ -74,6 +83,7 @@ def new_ctx(browser, fake, viewport=PHONE, scheme="light", seed_ls=None):
 
 
 AI_CALLS = []
+GEM_CALLS = []
 
 def btn(page, name, scope="body"):
     return page.locator(scope).get_by_role("button", name=name, exact=True).first
@@ -245,7 +255,7 @@ def run_main(browser):
     page.get_by_role("button", name="설정").first.click()
     page.fill("#aiKey", "틀린열쇠")
     btn(page, "저장하고 시험하기").click()
-    flash(page, "sk-ant-로 시작합니다")
+    flash(page, "로 시작합니다")
     page.fill("#aiKey", "sk-ant-test")
     btn(page, "저장하고 시험하기").click()
     flash(page, "Claude와 연결되었습니다")
@@ -681,6 +691,10 @@ def run_main(browser):
     # s23 설정과 연결 점검
     page.click("#sbTop .ver")
     ok("s23 설정에 계정과 원어 자료 출처가 보임", fake.email in main_text(page) and "STEP Bible" in main_text(page) and "CC BY 4.0" in main_text(page))
+    page.fill("#aiKey", "AIzaTEST")
+    btn(page, "저장하고 시험하기").click()
+    flash(page, "제미나이와 연결되었습니다")
+    ok("v16 제미나이 열쇠면 flash 모델을 골라 부름", len(GEM_CALLS) >= 1 and "/models/gemini-9-flash:generateContent" in GEM_CALLS[-1][0] and "제미나이와 연결" in page.inner_text("#aiSet"), str(GEM_CALLS[-1:])[:200])
     btn(page, "점검하기").click()
     page.wait_for_function("() => document.querySelectorAll('.check li').length >= 6")
     ok("s23 연결 점검 여섯 줄이 모두 됨", page.locator(".check li.no").count() == 0 and page.locator(".check li.ok").count() == 6, page.inner_text(".check"))

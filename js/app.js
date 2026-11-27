@@ -42,13 +42,13 @@ const lineHtml = m => splitLinks(m, true).map(p => (p.url ? docBtn(p.t, p.url) :
 const AI_RULE = "너는 강동윤 목사의 설교 준비와 독서를 돕는다. 받은 글 안에 있는 내용만 근거로 쓴다. 받은 글에 없는 사실, 예화, 인용, 통계, 성경 장절을 지어내지 않는다. 확실하지 않으면 [확인 필요]라고 적는다. 은혜(하나님이 먼저 하시는 일)를 앞에 두고 적용은 그 열매로 쓴다. 한국어로, 꾸밈 기호(별표, 샵) 없이 줄글로 쓴다.";
 function aiBox(k) {
   const A = S.ai; if (!A || A.k !== k) return "";
-  if (A.st === "ing") return '<div class="aibox" id="aiBox"><p class="muted">Claude가 쓰는 중입니다. 길면 1분쯤 걸립니다.</p></div>';
+  if (A.st === "ing") return '<div class="aibox" id="aiBox"><p class="muted">' + aiName() + '가 쓰는 중입니다. 길면 1분쯤 걸립니다.</p></div>';
   if (A.st === "err") return '<div class="aibox" id="aiBox"><p class="muted">' + esc(A.err) + "</p>" + btn("닫기", "aiClose") + "</div>";
   const steps = S.prep && A.to ? '<label class="fld">넣을 단계<select id="aiTo">' + D.STEPS.filter(x => !x.write).map(x => '<option value="' + x.no + '"' + (x.no === A.to ? " selected" : "") + ">" + x.no + ". " + esc(x.title) + "</option>").join("") + "</select></label>" : "";
-  return '<div class="aibox" id="aiBox"><label class="fld">Claude가 쓴 글 (고쳐도 됩니다)<textarea id="aiOut" rows="12">' + esc(A.text) + "</textarea></label>" + steps + '<div class="row two">' + (A.to ? btn("준비 메모로 넣기", "aiKeep", null, "pri") : "") + btn("닫기", "aiClose") + "</div></div>";
+  return '<div class="aibox" id="aiBox"><label class="fld">' + aiName() + '가 쓴 글 (고쳐도 됩니다)<textarea id="aiOut" rows="12">' + esc(A.text) + "</textarea></label>" + steps + '<div class="row two">' + (A.to ? btn("준비 메모로 넣기", "aiKeep", null, "pri") : "") + btn("닫기", "aiClose") + "</div></div>";
 }
 async function aiRun(k, prompt, to, max) {
-  if (!aiOn()) { flash("설정에서 Claude 연결 열쇠를 먼저 넣어 주십시오.", "bad"); return; }
+  if (!aiOn()) { flash("설정에서 AI 연결 열쇠를 먼저 넣어 주십시오.", "bad"); return; }
   S.ai = { k: k, st: "ing", to: to || 0 }; keepY(render);
   try { const text = await aiCall([{ role: "user", content: prompt }], AI_RULE, max); S.ai = { k: k, st: "ok", text: text, to: to || 0 }; }
   catch (e) { S.ai = { k: k, st: "err", err: explain(e), to: to || 0 }; }
@@ -70,10 +70,10 @@ function talkPrompt() {
 }
 function talkHtml() {
   const T = S.talk, M = T.msgs || [];
-  let h = M.slice(1).map(x => '<p class="say ' + (x.role === "user" ? "me" : "ai") + '"><b>' + (x.role === "user" ? "나" : "Claude") + "</b> " + esc(x.content).replace(/\n/g, "<br>") + "</p>").join("");
-  if (T.busy) h += '<p class="muted">Claude가 쓰는 중입니다.</p>';
+  let h = M.slice(1).map(x => '<p class="say ' + (x.role === "user" ? "me" : "ai") + '"><b>' + (x.role === "user" ? "나" : aiName()) + "</b> " + esc(x.content).replace(/\n/g, "<br>") + "</p>").join("");
+  if (T.busy) h += '<p class="muted">' + aiName() + "가 쓰는 중입니다.</p>";
   if (T.err) h += '<p class="muted">' + esc(T.err) + "</p>";
-  if (!M.length) return h + (aiOn() ? btn("여기서 토론 시작", "talkStart", null, "pri") : '<p class="muted">설정에서 Claude 연결 열쇠를 넣으면 여기서 바로 토론할 수 있습니다.</p>');
+  if (!M.length) return h + (aiOn() ? btn("여기서 토론 시작", "talkStart", null, "pri") : '<p class="muted">설정의 AI 연결에 열쇠를 넣으면 여기서 바로 토론할 수 있습니다.</p>');
   return h + (T.busy ? "" : '<label class="fld">내 답<textarea id="talkIn" rows="3" data-draft="talk.in">' + esc(draft("talk.in")) + '</textarea></label><div class="row two">' + btn("보내기", "talkSend", null, "pri") + btn("세 줄로 정리해 남기기", "talkKeep") + "</div>");
 }
 
@@ -521,7 +521,7 @@ function prepOpenView() {
     h += '<li class="step' + (open ? " open" : "") + (n ? " has" : "") + '" id="step' + s.no + '"><button type="button" class="sh" data-act="step" data-arg="' + s.no + '" aria-expanded="' + open + '"><span class="node">' + s.no + '</span><span class="st">' + esc(s.title) + "</span>" +
       (n ? '<span class="cnt">' + (s.write ? "쓴 글 있음" : "메모 " + n) + "</span>" : "") + "</button>" + (open ? '<div class="sb">' + stepBody(s) + "</div>" : "") + "</li>";
   }
-  return h + '</ol>' + (Z[0] === "S" ? '<section class="sec" id="visitAsk"><h2>심방 묵상 부탁 말</h2><p class="muted">가정 상황과 전하려는 말을 적으면, 묵상 포인트 다섯 가지와 배경, 적용 제안을 Claude에게 묻는 부탁 말을 만듭니다. 가정 상황은 이 기기에만 잠시 남고 드라이브에 저장하지 않습니다.</p><label class="fld">가정 상황<textarea id="vsA" rows="2" data-draft="vs.a.' + esc(P.id) + '">' + esc(draft("vs.a." + P.id)) + '</textarea></label><label class="fld">응답·연결 본문<input id="vsB" data-draft="vs.b.' + esc(P.id) + '" value="' + esc(draft("vs.b." + P.id)) + '"></label><label class="fld">전하려는 메시지<textarea id="vsC" rows="2" data-draft="vs.c.' + esc(P.id) + '">' + esc(draft("vs.c." + P.id)) + '</textarea></label><label class="fld">동행자<input id="vsD" data-draft="vs.d.' + esc(P.id) + '" value="' + esc(draft("vs.d." + P.id)) + '"></label>' + (aiOn() ? btn("여기서 Claude에게 묻기", "visitRun", null, "pri") : "") + btn("부탁 말 복사", "visitCopy", null, aiOn() ? "" : "pri") + aiBox("visit") + (S.copy ? '<textarea class="copy" rows="6" readonly>' + esc(S.copy) + "</textarea>" : "") + "</section>" : "") + '<p class="foot">' + (aiOn() ? btn("메모를 Claude로 풀어 쓰기", "proseRun", null, "pri") : "") + btn("메모를 글로 풀어 달라고 하기", "proseCopy") + "</p>" + '<p class="muted cw">' + outLink("Claude 창 열기", "https://claude.ai/artifact/Kk6NuXoD4GtKBEbkxSr7be") + " 열쇠 없이 Claude 앱 사용량 안에서 풀어 쓰고, 준비 문서에 바로 넣습니다.</p>" + aiBox("prose") + (S.copy && Z[0] !== "S" ? '<textarea class="copy" rows="6" readonly>' + esc(S.copy) + "</textarea>" : "") + '<p class="foot">' + btn("준비한 것 한눈에 읽기", "read", reg({ id: P.id, title: P.label + " 준비" })) + "</p>";
+  return h + '</ol>' + (Z[0] === "S" ? '<section class="sec" id="visitAsk"><h2>심방 묵상 부탁 말</h2><p class="muted">가정 상황과 전하려는 말을 적으면, 묵상 포인트 다섯 가지와 배경, 적용 제안을 Claude에게 묻는 부탁 말을 만듭니다. 가정 상황은 이 기기에만 잠시 남고 드라이브에 저장하지 않습니다.</p><label class="fld">가정 상황<textarea id="vsA" rows="2" data-draft="vs.a.' + esc(P.id) + '">' + esc(draft("vs.a." + P.id)) + '</textarea></label><label class="fld">응답·연결 본문<input id="vsB" data-draft="vs.b.' + esc(P.id) + '" value="' + esc(draft("vs.b." + P.id)) + '"></label><label class="fld">전하려는 메시지<textarea id="vsC" rows="2" data-draft="vs.c.' + esc(P.id) + '">' + esc(draft("vs.c." + P.id)) + '</textarea></label><label class="fld">동행자<input id="vsD" data-draft="vs.d.' + esc(P.id) + '" value="' + esc(draft("vs.d." + P.id)) + '"></label>' + (aiOn() && !aiIsG() ? btn("여기서 Claude에게 묻기", "visitRun", null, "pri") : "") + btn("부탁 말 복사", "visitCopy", null, aiOn() && !aiIsG() ? "" : "pri") + (aiIsG() ? '<p class="muted">심방 가정 상황은 무료 제미나이로 보내지 않습니다(보낸 글이 구글의 제품 개선에 쓰입니다). 부탁 말을 복사해 Claude에 붙이거나 Claude 창을 쓰십시오.</p>' : "") + aiBox("visit") + (S.copy ? '<textarea class="copy" rows="6" readonly>' + esc(S.copy) + "</textarea>" : "") + "</section>" : "") + '<p class="foot">' + (aiOn() ? btn("메모를 " + aiName() + "로 풀어 쓰기", "proseRun", null, "pri") : "") + btn("메모를 글로 풀어 달라고 하기", "proseCopy") + "</p>" + '<p class="muted cw">' + outLink("Claude 창 열기", "https://claude.ai/artifact/Kk6NuXoD4GtKBEbkxSr7be") + " 열쇠 없이 Claude 앱 사용량 안에서 풀어 쓰고, 준비 문서에 바로 넣습니다.</p>" + aiBox("prose") + (S.copy && Z[0] !== "S" ? '<textarea class="copy" rows="6" readonly>' + esc(S.copy) + "</textarea>" : "") + '<p class="foot">' + btn("준비한 것 한눈에 읽기", "read", reg({ id: P.id, title: P.label + " 준비" })) + "</p>";
 }
 function chapPartHtml(s) {
   const P = S.prep, bi = P.info.bookIndex, ch = P.info.ch, C = S.chap[chapKey(bi, ch)], secs = s.kinds.filter(k => k !== "text" && k !== "logos" && k !== "orig" && k !== "bri");
@@ -566,7 +566,7 @@ function stepBody(s) {
   }
   if (s.kinds.indexOf("예화") >= 0) h += recHtml();
   if (s.write) h += writeHtml(s, info);
-  else h += memosHtml(s, info) + '<label class="fld">메모<textarea id="memo' + s.no + '" rows="4" data-draft="' + esc(key) + '">' + esc(draft(key)) + "</textarea></label>" + btn("메모 저장", "memoSave", s.no, "pri wide") + (info.lines.filter(x => x.trim()).length && aiOn() ? '<p class="acts">' + btn("이 단계 메모를 Claude로 풀어 쓰기", "stepProse", s.no, "inl") + "</p>" : "") + aiBox("step" + s.no);
+  else h += memosHtml(s, info) + '<label class="fld">메모<textarea id="memo' + s.no + '" rows="4" data-draft="' + esc(key) + '">' + esc(draft(key)) + "</textarea></label>" + btn("메모 저장", "memoSave", s.no, "pri wide") + (info.lines.filter(x => x.trim()).length && aiOn() ? '<p class="acts">' + btn("이 단계 메모를 " + aiName() + "로 풀어 쓰기", "stepProse", s.no, "inl") + "</p>" : "") + aiBox("step" + s.no);
   return h + (next ? '<p class="next">' + btn("다음: " + next.no + ". " + esc(next.title), "step", next.no, "inl") + "</p>" : "");
 }
 
@@ -719,7 +719,7 @@ function setView() {
   h += '<p class="muted">자료실은 읽기만 합니다. 앱이 쓰는 글은 「' + esc(D.MY_FOLDER) + "」 폴더에만 만들고, 파일을 지우는 기능은 없습니다. 로그아웃해도 이 기기의 기록은 그대로 둡니다.</p></section>";
   if (!D.OAUTH.clientId) h += '<section class="sec"><h2>연결 값</h2>' + cidHtml() + "</section>";
   const ac = aiConf();
-  h += '<section class="sec" id="aiSet"><h2>Claude 연결</h2><p class="muted">Claude API 열쇠를 넣으면 메모 풀어 쓰기, 심방 묵상, 독서 토론을 앱 안에서 바로 합니다. 열쇠는 이 기기에만 남고 드라이브나 저장소에 올라가지 않습니다. 쓴 만큼 Claude API 요금이 따로 나갑니다(Claude 앱 구독과 별개).</p><p class="rd">' + (ac.key ? "연결되어 있습니다 (열쇠 끝자리 " + esc(ac.key.slice(-4)) + ")." : "아직 연결하지 않았습니다.") + '</p><label class="fld">열쇠 (sk-ant-로 시작)<input id="aiKey" type="password" autocomplete="off" placeholder="' + (ac.key ? "바꿀 때만 적습니다" : "") + '"></label><label class="fld">모델<select id="aiModel">' + [["claude-sonnet-5-5", "Sonnet 5.5 (보통, 권함)"], ["claude-opus-5-5", "Opus 5.5 (더 깊게, 더 비쌈)"], ["claude-haiku-5-5", "Haiku 5.5 (빠르고 쌈)"]].map(m => '<option value="' + m[0] + '"' + (m[0] === ac.model ? " selected" : "") + ">" + m[1] + "</option>").join("") + '</select></label><div class="row two">' + btn("저장하고 시험하기", "aiSave", null, "pri") + (ac.key ? btn("열쇠 지우기", "aiForget") : "") + "</div></section>";
+  h += '<section class="sec" id="aiSet"><h2>AI 연결</h2><p class="muted">열쇠를 넣으면 메모 풀어 쓰기와 독서 토론을 앱 안에서 바로 합니다. 열쇠는 이 기기에만 남고 드라이브나 저장소에 올라가지 않습니다.</p><ul class="links"><li>제미나이 (무료): Google AI Studio에서 받은 열쇠(AIza로 시작). 요금이 없고 하루 한도가 있습니다. 보낸 글은 구글의 제품 개선에 쓰입니다.</li><li>Claude (유료): Claude 콘솔의 API 열쇠(sk-ant-로 시작). 쓴 만큼 요금이 나갑니다.</li></ul><p class="rd">' + (ac.key ? aiName() + "와 연결되어 있습니다 (열쇠 끝자리 " + esc(ac.key.slice(-4)) + ")." : "아직 연결하지 않았습니다.") + '</p><label class="fld">열쇠<input id="aiKey" type="password" autocomplete="off" placeholder="' + (ac.key ? "바꿀 때만 적습니다" : "여기에 붙여 넣기") + '"></label>' + (ac.key && !aiIsG() ? '<label class="fld">모델<select id="aiModel">' + [["claude-sonnet-5-5", "Sonnet 5.5 (보통, 권함)"], ["claude-opus-5-5", "Opus 5.5 (더 깊게, 더 비쌈)"], ["claude-haiku-5-5", "Haiku 5.5 (빠르고 쌈)"]].map(m => '<option value="' + m[0] + '"' + (m[0] === ac.model ? " selected" : "") + ">" + m[1] + "</option>").join("") + "</select></label>" : "") + '<div class="row two">' + btn("저장하고 시험하기", "aiSave", null, "pri") + (ac.key ? btn("열쇠 지우기", "aiForget") : "") + "</div></section>";
   h += '<section class="sec"><h2>연결 점검</h2><p class="muted">어디에서 막히는지 한 줄씩 보여 줍니다.</p>' + btn("점검하기", "check") +
     (S.check ? '<ul class="check">' + S.check.map(c => '<li class="' + (c.ok === true ? "ok" : c.ok === false ? "no" : "") + '"><b>' + (c.ok === true ? "됨" : c.ok === false ? "안 됨" : "건너뜀") + "</b>" + esc(c.t) + "</li>").join("") + "</ul>" : "") + "</section>";
   h += '<section class="sec"><h2>버전 v' + BUILD + "</h2>" + D.CHANGELOG.map(c => '<p class="chg"><b>v' + c.v + "</b> " + esc(c.d) + "</p><ul>" + c.t.map(x => "<li>" + esc(x) + "</li>").join("") + "</ul>").join("") + btn("새 버전 확인", "updCheck") + "</section>";
@@ -869,12 +869,12 @@ const ACT = {
   },
   async aiSave() {
     const k = val("aiKey"), old = aiConf(), key = k || old.key; if (!key) { flash("열쇠를 적어 주십시오.", "bad"); return; }
-    if (!/^sk-ant-/.test(key)) { flash("열쇠는 sk-ant-로 시작합니다. 다시 확인해 주십시오.", "bad"); return; }
-    LS.set("ai", { key: key, model: val("aiModel") || old.model });
-    try { await aiCall([{ role: "user", content: "연결 시험입니다. '됩니다' 한 마디만 답해 주세요." }], "", 20); flash("Claude와 연결되었습니다."); } catch (e) { flash(explain(e), "bad"); }
+    if (!/^(sk-ant-|AIza)/.test(key)) { flash("열쇠는 AIza(제미나이)나 sk-ant-(Claude)로 시작합니다. 다시 확인해 주십시오.", "bad"); return; }
+    LS.set("ai", { key: key, model: val("aiModel") || old.model }); LS.del("gemModel");
+    try { await aiCall([{ role: "user", content: "연결 시험입니다. '됩니다' 한 마디만 답해 주세요." }], "", 20); flash(aiName() + "와 연결되었습니다."); } catch (e) { flash(explain(e), "bad"); }
     render();
   },
-  aiForget() { LS.del("ai"); S.ai = null; flash("이 기기에서 열쇠를 지웠습니다."); render(); },
+  aiForget() { LS.del("ai"); LS.del("gemModel"); S.ai = null; flash("이 기기에서 열쇠를 지웠습니다."); render(); },
   aiClose() { S.ai = null; keepY(render); },
   async aiKeep() {
     const A = S.ai, P = S.prep; if (!A || !P) return; const no = +val("aiTo") || A.to, text = val("aiOut"); if (!text) { flash("넣을 글이 없습니다.", "bad"); return; }

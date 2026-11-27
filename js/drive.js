@@ -95,8 +95,34 @@ async function gOcr(name, parent, mime, b64) {
 /* Claude 연결: 열쇠는 이 기기에만 둔다(드라이브나 저장소에 올리지 않는다) */
 const aiConf = () => { const c = LS.get("ai", null) || {}; return { key: String(c.key || ""), model: c.model || "claude-sonnet-5-5" }; };
 const aiOn = () => !!aiConf().key;
+const aiIsG = () => /^AIza/.test(aiConf().key);
+const aiName = () => (aiIsG() ? "제미나이" : "Claude");
+/* 제미나이: 모델 이름이 자주 바뀌므로 쓸 수 있는 모델 목록에서 flash 를 골라 쓴다 */
+async function gemModel(key) {
+  const c = LS.get("gemModel", null); if (c && c.at > Date.now() - 864e5 && c.m) return c.m;
+  const r = await fetchT("https://generativelanguage.googleapis.com/v1beta/models?pageSize=200", { headers: { "x-goog-api-key": key } }, 20000), j = await r.json().catch(() => null);
+  if (!r.ok) throw new GErr("ai", r.status === 400 || r.status === 403 ? "제미나이 열쇠가 맞지 않습니다. 설정에서 다시 넣어 주십시오." : "제미나이가 답하지 못했습니다(" + r.status + ").");
+  const ok = ((j && j.models) || []).filter(m => (m.supportedGenerationMethods || []).indexOf("generateContent") >= 0).map(m => String(m.name || "").replace(/^models\//, "")).filter(n => /^gemini-/.test(n) && !/image|tts|audio|live|embedding|vision|robotics|computer/.test(n));
+  const pick = ok.filter(n => /flash/.test(n) && !/lite|preview|exp/.test(n)).sort().pop() || ok.filter(n => /flash/.test(n) && !/lite/.test(n)).sort().pop() || ok.filter(n => /flash/.test(n)).sort().pop() || ok.sort().pop();
+  if (!pick) throw new GErr("ai", "이 열쇠로 쓸 수 있는 제미나이 모델을 찾지 못했습니다.");
+  LS.set("gemModel", { m: pick, at: Date.now() }); return pick;
+}
+async function gemCall(key, msgs, system, max) {
+  let res, j = null;
+  try {
+    const model = await gemModel(key), body = { contents: msgs.map(m => ({ role: m.role === "assistant" ? "model" : "user", parts: [{ text: m.content }] })), generationConfig: { maxOutputTokens: Math.max(4096, (max || 3000) * 3) } };
+    if (system) body.system_instruction = { parts: [{ text: system }] };
+    res = await fetchT("https://generativelanguage.googleapis.com/v1beta/models/" + encodeURIComponent(model) + ":generateContent", { method: "POST", headers: { "content-type": "application/json", "x-goog-api-key": key }, body: JSON.stringify(body) }, 120000);
+    j = await res.json().catch(() => null);
+  } catch (e) { if (e instanceof GErr) throw e; const late = e && e.name === "AbortError"; throw new GErr(late ? "timeout" : "network", late ? "제미나이가 제때 답하지 않았습니다. 다시 눌러 주십시오." : "인터넷 연결을 확인해 주십시오."); }
+  if (!res.ok) { if (res.status === 404) LS.del("gemModel"); throw new GErr("ai", res.status === 429 ? "제미나이 무료 한도에 걸렸습니다. 잠시 뒤(분당 한도) 또는 내일(하루 한도) 다시 눌러 주십시오." : res.status === 400 || res.status === 403 ? "제미나이 열쇠가 맞지 않거나 막혀 있습니다. 설정에서 다시 넣어 주십시오." : "제미나이가 답하지 못했습니다(" + res.status + "). 다시 눌러 주십시오."); }
+  const c = ((j && j.candidates) || [])[0], text = ((c && c.content && c.content.parts) || []).filter(x => x.text && !x.thought).map(x => x.text).join("").trim();
+  if (!text) throw new GErr("ai", "제미나이가 빈 답을 보냈습니다" + (c && c.finishReason ? " (" + c.finishReason + ")" : "") + ". 다시 눌러 주십시오.");
+  return text;
+}
 async function aiCall(msgs, system, max) {
-  const c = aiConf(); if (!c.key) throw new GErr("aikey", "설정에서 Claude 연결 열쇠를 먼저 넣어 주십시오.");
+  const c = aiConf(); if (!c.key) throw new GErr("aikey", "설정에서 AI 연결 열쇠를 먼저 넣어 주십시오.");
+  if (aiIsG()) return gemCall(c.key, msgs, system, max);
   let res;
   try { res = await fetchT("https://api.anthropic.com/v1/messages", { method: "POST", headers: { "content-type": "application/json", "x-api-key": c.key, "anthropic-version": "2023-06-01", "anthropic-dangerous-direct-browser-access": "true" }, body: JSON.stringify({ model: c.model, max_tokens: max || 3000, system: system || "", messages: msgs }) }, 120000); }
   catch (e) { const late = e && e.name === "AbortError"; throw new GErr(late ? "timeout" : "network", late ? "Claude가 제때 답하지 않았습니다. 다시 눌러 주십시오." : "인터넷 연결을 확인해 주십시오."); }
